@@ -6,6 +6,23 @@
 
 (native!)
 
+(def graphics-config
+  (.getDefaultConfiguration (.getDefaultScreenDevice (java.awt.GraphicsEnvironment/getLocalGraphicsEnvironment))))
+
+(defn make-image [w h]
+  (.createCompatibleImage graphics-config w h))
+
+(defn create-draw-image [w h draw]
+  (let [img (make-image)
+        g2d (.createGraphics img)]
+    (draw g2d)
+    (.dispose g2d)
+    img))
+
+(defn draw-img [g img x y]
+  (.drawImage g img x y nil))
+
+
 (defn tuple-from-index [arity size value]
   (->> (range 0 arity)
        (map #(mod (int (/ value (Math/pow size %))) size))
@@ -30,6 +47,17 @@
    :relations #{ (relation "E" 2 (fn [[x y]] (= (inc x) y)) size) }
    :constants { "s" 0 "t" (dec size) }
    })
+
+(def grid-width 10)
+(def grid-size 20)
+(def grid-spacing 20)
+
+;(defn draw-grid [g structure]
+;  (let [size (:size structure)
+;        rows (int (/ size grid-width))]
+;    (->>
+;      (range 0 size)
+;      (map #(rect (* (mod % grid-width) grid-size (
 
 (defn transform-xyt [x y theta]
   (doto (java.awt.geom.AffineTransform.)
@@ -73,12 +101,17 @@
     (directed-arrow g [w 0] [mw mh])
     (directed-arrow g [0 h] [mw mh])))
 
-(defn run []
-  (doto (frame
-          :title "EF-games" :width 640 :height 480
-          :content
-          (canvas :id :canvas :background "#ffffff" :paint paint-checkerboard))
-    (show!)))
+(defn make-canvas [paint-method]
+  (doto (canvas :id :canvas :background "#ffffff" :paint paint-method)
+    (request-focus!)))
+
+(defn run 
+  ([] (run paint-checkerboard))
+  ([paint-method]
+   (doto (frame
+           :title "EF-games" :width 640 :height 480
+           :content (make-canvas paint-method))
+     (show!))))
 
 
 (defn -main [& args]
