@@ -49,6 +49,18 @@
           (.drawLine g (- len delta) (+ delta) len 0))
     ))
 
+(defn text-bb [g string]
+  (let [font (.getFont g)
+        metrics (.getFontMetrics g font)
+        bounds (.getStringBounds metrics string g)]
+    [(.getWidth bounds) (.getHeight bounds)]))
+
+(defn center-text [g string [x1 y1] [x2 y2]]
+  (let [[xw yw] (text-bb g string)
+        midx (/ (+ x2 x1) 2)
+        midy (/ (+ y2 y1) 2)]
+    (.drawString g string (float (- midx (/ xw 2))) (float (+ midy (/ yw 2))))))
+
 (defn paint-checkerboard [c g]
   (let [w (.getWidth c)
         h (.getHeight c)
@@ -56,6 +68,8 @@
         mh (/ h 2)]
     (draw g (rect 0 0 mw mh) (style :background "#ff0000"))
     (draw g (rect mw mh w h) (style :background "#ff0000"))
+    (.setColor g (color :blue))
+    (center-text g "Hello World!" [0 0] [mw mh])
     (directed-arrow g [w 0] [mw mh])
     (directed-arrow g [0 h] [mw mh])))
 
