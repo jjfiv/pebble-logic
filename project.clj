@@ -7,3 +7,4 @@
   :main ^:skip-aot pebble.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
+
