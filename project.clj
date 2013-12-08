@@ -4,6 +4,9 @@
                  [net.sourceforge.jeuclid/jeuclid-core "3.1.9"]
                  [seesaw "1.4.4"]
                  ]
+  :java-source-paths ["src/main/java"]
+  :javac-options ["-target" "1.6" "-source" "1.6"]
+  :source-paths ["src/main/clojure"]
   :main ^:skip-aot pebble.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

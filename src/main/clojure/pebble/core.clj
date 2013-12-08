@@ -98,6 +98,7 @@
   (.setColor g draw-color)
   (.drawRect g x y w h))
 
+
 (defn draw-node [g node]
   (let [{x :x y :y index :index} node
         [tw th] (text-bb g (str index))
