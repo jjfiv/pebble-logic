@@ -2,6 +2,7 @@
   (:use seesaw.core
         seesaw.graphics
         seesaw.color)
+  (:import (pebble UI))
   (:gen-class))
 
 (native!)
@@ -179,6 +180,8 @@
            :content (make-canvas paint-method))
      (show!))))
 
+(defn repl-init []
+  (defn ui (pebble.UI/run)))
 
 (defn -main [& args]
   (println "Hello, World!"))

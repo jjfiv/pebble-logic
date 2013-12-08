@@ -2,20 +2,13 @@ package pebble;
 
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.BorderFactory;
+import java.awt.image.BufferedImage;
 import javax.swing.BoxLayout;
-import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollBar;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.JViewport;
-import javax.swing.SwingUtilities;
 
 /**
  *
@@ -55,7 +48,7 @@ public class UI implements ActionListener {
   public static void main(String[] args) {
     run();
   }
-  public static void run() {
+  public static UI run() {
     UI ui = new UI(new CommandEvaluator() {
       @Override
       public void evaluate(UI ui, String cmd) {
@@ -65,7 +58,7 @@ public class UI implements ActionListener {
           try {
             int n = Integer.parseInt(before);
             for (int i = 0; i < n; i++) {
-              ui.canvasBuffer.append(new TextMessage(after), false);
+              ui.canvasBuffer.append(new PaddedLabel(after), false);
             }
             ui.canvasBuffer.update();
             ui.canvasBuffer.scrollDown();
@@ -75,15 +68,23 @@ public class UI implements ActionListener {
           }
         } else {
 
-          ui.canvasBuffer.append(new TextMessage(cmd));
+          ui.canvasBuffer.append(new PaddedLabel(cmd));
           ui.commandField.setText("");
         }
       }
     });
+    
+    return ui;
   }
 
   public void showError(String msg) {
-    canvasBuffer.append(TextMessage.error(msg));
+    canvasBuffer.append(new PaddedLabel(msg, Color.RED));
+  }
+  public void showText(String msg) {
+    canvasBuffer.append(new PaddedLabel(msg));
+  }
+  public void showImage(BufferedImage img) {
+    canvasBuffer.append(new PaddedLabel(img));
   }
 
   @Override

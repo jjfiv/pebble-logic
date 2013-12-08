@@ -40,7 +40,7 @@ public class CanvasBuffer {
   public void append(JComponent component) {
     append(component, true);
   }
-
+  
   public void append(JComponent component, boolean update) {
     panel.add(component);
     if (update) {

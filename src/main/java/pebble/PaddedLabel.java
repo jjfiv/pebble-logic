@@ -1,27 +1,29 @@
 package pebble;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 
 /**
  *
  * @author jfoley
  */
-public class TextMessage extends JLabel {
+public class PaddedLabel extends JLabel {
 
-  public TextMessage(String text) {
+  public PaddedLabel(String text) {
     super(text);
     this.setBorder(BorderFactory.createEmptyBorder(5, 5, 0, 5));
   }
 
-  public TextMessage(String text, Color color) {
+  public PaddedLabel(String text, Color color) {
     this(text);
     this.setForeground(color);
   }
 
-  public static TextMessage error(String msg) {
-    return new TextMessage("Error: " + msg, Color.RED);
+  public PaddedLabel(BufferedImage image) {
+    super(new ImageIcon(image));
   }
   
 }
