@@ -13,21 +13,29 @@ import javax.swing.JLabel;
  */
 public class PaddedLabel extends JLabel {
 
+  private void init() {
+        this.setBorder(BorderFactory.createEmptyBorder(5, 5, 0, 5));
+
+  }
   public PaddedLabel(String text) {
     super(text);
-    this.setBorder(BorderFactory.createEmptyBorder(5, 5, 0, 5));
+    init();
   }
 
   public PaddedLabel(String text, Color color) {
-    this(text);
+    super(text);
     this.setForeground(color);
+    init();
   }
 
   public PaddedLabel(BufferedImage image) {
     super(new ImageIcon(image));
-    Dimension dim = new Dimension(image.getWidth(), image.getHeight());
-    this.setMinimumSize(dim);
-    this.setPreferredSize(dim);
+    init();
+  }
+  
+  public PaddedLabel(byte[] data) {
+    super(new ImageIcon(data));
+    init();
   }
   
 }

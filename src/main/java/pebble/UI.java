@@ -87,6 +87,9 @@ public class UI implements ActionListener {
     canvasBuffer.append(new PaddedLabel(img));
     canvasBuffer.scrollDown();
   }
+  public void showBytesAsImage(byte[] data) {
+    canvasBuffer.append(new PaddedLabel(data));
+  }
 
   @Override
   public void actionPerformed(ActionEvent ae) {
