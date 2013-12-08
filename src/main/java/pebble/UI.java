@@ -26,6 +26,7 @@ public class UI implements ActionListener {
     commandEvaluator = ceval;
     
     frame = new JFrame();
+    frame.setTitle("EF Games");
     frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     
     panel = new JPanel();
