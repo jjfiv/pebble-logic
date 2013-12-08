@@ -2,7 +2,7 @@
   (:use seesaw.core
         seesaw.graphics
         seesaw.color)
-  (:import (pebble UI))
+  (:import (pebble UI PaddedLabel CommandEvaluator))
   (:gen-class))
 
 (native!)
@@ -180,8 +180,18 @@
            :content (make-canvas paint-method))
      (show!))))
 
+(defn eval-cmd [ui cmd]
+  (.append (.canvasBuffer ui) (PaddedLabel. cmd)))
+
+(defn make-ui []
+  (pebble.UI. 
+    (reify CommandEvaluator
+      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
+; (pebble.UI/run))
+
 (when-not (and (resolve 'ui) (bound? (resolve 'ui)))
-  (def ui (pebble.UI/run)))
+  (def ui (make-ui)))
+
 
 (defn -main [& args]
   (println "Hello, World!"))

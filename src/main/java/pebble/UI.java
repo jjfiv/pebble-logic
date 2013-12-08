@@ -56,7 +56,7 @@ public class UI implements ActionListener {
           String before = cmd.substring(0, cmd.indexOf(":"));
           String after = cmd.substring(cmd.indexOf(":") + 1);
           try {
-            int n = Math.min(ui.canvasBuffer.SIZE, Integer.parseInt(before));
+            int n = Math.min(CanvasBuffer.SIZE, Integer.parseInt(before));
             for (int i = 0; i < n; i++) {
               ui.canvasBuffer.append(new PaddedLabel(after), false);
             }
@@ -68,7 +68,7 @@ public class UI implements ActionListener {
           }
         } else {
 
-          ui.canvasBuffer.append(new PaddedLabel(cmd));
+          ui.showText(cmd);
           ui.commandField.setText("");
         }
       }
