@@ -3,6 +3,9 @@ package pebble;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.List;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -16,15 +19,19 @@ import javax.swing.Timer;
  * @author jfoley
  */
 public class CanvasBuffer {
+  public final static int SIZE = 1024;
 
   private final JPanel panel;
   private final JScrollPane scroller;
   private final JPanel parent;
+  
+  private final Deque<JComponent> components;
 
   public CanvasBuffer(JPanel parent) {
     this.parent = parent;
     this.panel = new JPanel();
     this.scroller = new JScrollPane(panel);
+    components = new LinkedList<JComponent>();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
     setMinSize(300, 300);
   }
@@ -46,6 +53,7 @@ public class CanvasBuffer {
 
   public void append(JComponent component, boolean update) {
     panel.add(component);
+    components.offer(component);
     if (update) {
       update();
       scrollDown();
@@ -72,6 +80,9 @@ public class CanvasBuffer {
   }
 
   public void update() {
+    while(components.size() > SIZE) {
+      panel.remove(components.pop());
+    }
     panel.revalidate();
   }
 }

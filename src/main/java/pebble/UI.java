@@ -56,7 +56,7 @@ public class UI implements ActionListener {
           String before = cmd.substring(0, cmd.indexOf(":"));
           String after = cmd.substring(cmd.indexOf(":") + 1);
           try {
-            int n = Integer.parseInt(before);
+            int n = Math.min(ui.canvasBuffer.SIZE, Integer.parseInt(before));
             for (int i = 0; i < n; i++) {
               ui.canvasBuffer.append(new PaddedLabel(after), false);
             }
