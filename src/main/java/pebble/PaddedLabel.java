@@ -1,6 +1,7 @@
 package pebble;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -24,6 +25,9 @@ public class PaddedLabel extends JLabel {
 
   public PaddedLabel(BufferedImage image) {
     super(new ImageIcon(image));
+    Dimension dim = new Dimension(image.getWidth(), image.getHeight());
+    this.setMinimumSize(dim);
+    this.setPreferredSize(dim);
   }
   
 }

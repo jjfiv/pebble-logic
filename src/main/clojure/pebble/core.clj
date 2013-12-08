@@ -180,8 +180,8 @@
            :content (make-canvas paint-method))
      (show!))))
 
-(defn repl-init []
-  (defn ui (pebble.UI/run)))
+(when-not (and (resolve 'ui) (bound? (resolve 'ui)))
+  (def ui (pebble.UI/run)))
 
 (defn -main [& args]
   (println "Hello, World!"))

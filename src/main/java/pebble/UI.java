@@ -26,7 +26,7 @@ public class UI implements ActionListener {
     commandEvaluator = ceval;
     
     frame = new JFrame();
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     
     panel = new JPanel();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
@@ -85,6 +85,7 @@ public class UI implements ActionListener {
   }
   public void showImage(BufferedImage img) {
     canvasBuffer.append(new PaddedLabel(img));
+    canvasBuffer.scrollDown();
   }
 
   @Override

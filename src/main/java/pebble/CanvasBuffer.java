@@ -1,19 +1,22 @@
 package pebble;
 
 import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
-import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 /**
  *
  * @author jfoley
  */
 public class CanvasBuffer {
+
   private final JPanel panel;
   private final JScrollPane scroller;
   private final JPanel parent;
@@ -40,7 +43,7 @@ public class CanvasBuffer {
   public void append(JComponent component) {
     append(component, true);
   }
-  
+
   public void append(JComponent component, boolean update) {
     panel.add(component);
     if (update) {
@@ -48,19 +51,27 @@ public class CanvasBuffer {
       scrollDown();
     }
   }
+  /**
+   * Hack because invokeLater doesn't invoke after large things are formatted,
+   * so we don't scroll down far enough.
+   */
+  private final Timer scrollDownTimer = new Timer(10, new ActionListener() {
+    @Override
+    public void actionPerformed(ActionEvent ae) {
+      JScrollBar vsb = scroller.getVerticalScrollBar();
+      vsb.setValue(vsb.getMaximum());
+      scrollDownTimer.stop();
+    }
+  });
 
   public void scrollDown() {
-    SwingUtilities.invokeLater(new Runnable() {
-      @Override
-      public void run() {
-        JScrollBar vsb = scroller.getVerticalScrollBar();
-        vsb.setValue(vsb.getMaximum());
-      }
-    });
+    if (!scrollDownTimer.isRunning()) {
+      this.scrollDownTimer.setInitialDelay(20);
+      scrollDownTimer.start();
+    }
   }
 
   public void update() {
     panel.revalidate();
   }
-  
 }
