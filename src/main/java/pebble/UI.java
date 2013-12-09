@@ -1,6 +1,5 @@
 package pebble;
 
-
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -15,40 +14,41 @@ import javax.swing.JTextField;
  * @author jfoley
  */
 public class UI implements ActionListener {
+
   public CommandEvaluator commandEvaluator;
   public final JFrame frame;
   public final JPanel panel;
   public final CanvasBuffer canvasBuffer;
-  
   public final JTextField commandField;
-  
+
   public UI(CommandEvaluator ceval) {
     commandEvaluator = ceval;
-    
+
     frame = new JFrame();
     frame.setTitle("EF Games");
     frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-    
+
     panel = new JPanel();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
     canvasBuffer = new CanvasBuffer(panel);
     canvasBuffer.add();
-    
+
     commandField = new MaxHeightTextField();
     commandField.addActionListener(this);
     panel.add(commandField);
 
-    
+
     frame.setContentPane(panel);
     frame.pack();
     frame.setVisible(true);
 
   }
-  
+
   public static void main(String[] args) {
     run();
   }
+
   public static UI run() {
     UI ui = new UI(new CommandEvaluator() {
       @Override
@@ -67,27 +67,39 @@ public class UI implements ActionListener {
           } catch (NumberFormatException nfe) {
             ui.showError(nfe.getMessage());
           }
-        } else {
-
-          ui.showText(cmd);
-          ui.commandField.setText("");
+          return;
         }
+        if (cmd.startsWith("$")) {
+          try {
+            BufferedImage img = RenderMath.renderLatex(cmd.substring(1));
+            ui.showImage(img);
+            return;
+          } catch (Exception e) {
+            ui.showError("Could not render "+cmd.substring(1)+" as latex math!"+e.getMessage());
+          }
+        }
+
+        ui.showText(cmd);
+        ui.commandField.setText("");
       }
     });
-    
+
     return ui;
   }
 
   public void showError(String msg) {
     canvasBuffer.append(new PaddedLabel(msg, Color.RED));
   }
+
   public void showText(String msg) {
     canvasBuffer.append(new PaddedLabel(msg));
   }
+
   public void showImage(BufferedImage img) {
     canvasBuffer.append(new PaddedLabel(img));
     canvasBuffer.scrollDown();
   }
+
   public void showBytesAsImage(byte[] data) {
     canvasBuffer.append(new PaddedLabel(data));
   }
