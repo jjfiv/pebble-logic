@@ -1,4 +1,5 @@
 (ns pebble.core
+  (:require [clojure.math.combinatorics :as combo])
   (:use clojure.java.shell
         clojure.set)
   (:import (pebble UI PaddedLabel CommandEvaluator))
@@ -10,9 +11,12 @@
        (reverse)
        (into [])))
 
-(defn eval-relation [arity size func]
+(defn all-tuples [arity size]
   (->> (range 0 (int (Math/pow size arity)))
-       (map #(tuple-from-index arity size %))
+       (map #(tuple-from-index arity size %))))
+
+(defn eval-relation [arity size func]
+  (->> (all-tuples arity size)
        (filter func)
        (into #{})))
 
@@ -28,6 +32,16 @@
    :relations #{ (relation "E" 2 (fn [[x y]] (= (inc x) y)) size) }
    :constants { "s" 0 "t" (dec size) }
    })
+
+; now we can require vocabularies to be equal for EF-game playing!
+(defn vocabulary [{rels :relations consts :constants}]
+  (concat
+    ; relations
+    (map #(select-keys % [:name :arity]) rels)
+    ; constants
+    (map 
+      #(-> {:name % :arity 0})
+      (keys consts))))
 
 (defn structure-contains? [{size :size} id]
   (println "size=" size)
@@ -125,7 +139,6 @@
   (let [pid (pebble-id pebble-num)
         {struc :struc pebbles :pebbles}  (get game which-struc)
         new-map {:struc struc :pebbles (assoc pebbles pid which-node)}]
-    (println new-map)
     (assert (structure-contains? struc which-node))
     (pebble-played
       (assoc game 
@@ -133,15 +146,30 @@
              {:struc struc
               :pebbles (assoc pebbles pid which-node)}))))
 
-    
-        
-
-
 ; if the duplicator isn't done yet
 (defn game-over? [game]
   (and
     (= (whose-turn game) :spoiler)
     (= (:moves game) (:current-move game))))
+
+(defn meaningful-exprs [game which-struc]
+  (let [{struc :struc pebbles :pebbles} (get game which-struc)
+        consts-and-pebbles (merge (:constants struc) pebbles)
+        valid-nodes (into #{} (vals consts-and-pebbles))]
+    (->> (:relations struc)
+         ; drop any elements of relations we can't express using constants and these pebbles
+         (map
+           (fn [rel]
+             (assoc rel 
+                    :entries
+                    (filter
+                      (fn [tuple]
+                        (every?  #(contains? valid-nodes %) tuple))
+                      (:entries rel)))))
+         ; drop any relations that have no active entries
+         (filter (fn [rel] (< 0 (:entries rel))))
+         )))
+
 
 
 
