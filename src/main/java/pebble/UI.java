@@ -21,11 +21,11 @@ public class UI implements ActionListener {
   public final CanvasBuffer canvasBuffer;
   public final JTextField commandField;
 
-  public UI(CommandEvaluator ceval) {
+  public UI(String title, CommandEvaluator ceval) {
     commandEvaluator = ceval;
 
     frame = new JFrame();
-    frame.setTitle("EF Games");
+    frame.setTitle(title);
     frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
     panel = new JPanel();
@@ -50,7 +50,7 @@ public class UI implements ActionListener {
   }
 
   public static UI run() {
-    UI ui = new UI(new CommandEvaluator() {
+    UI ui = new UI("UI-Test", new CommandEvaluator() {
       @Override
       public void evaluate(UI ui, String cmd) {
         if (cmd.contains(":") && Character.isDigit(cmd.charAt(0))) {

@@ -5,6 +5,8 @@
   (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
   (:gen-class))
 
+;; logical structure utils
+
 (defn tuple-from-index [arity size value]
   (->> (range 0 arity)
        (map #(mod (int (/ value (Math/pow size %))) size))
@@ -51,15 +53,6 @@
     (<= 0 id)
     (< id size)))
 
-(defn graphviz-nodes [{size :size constants :constants}]
-  (let [id->const (clojure.set/map-invert constants)]
-    (->> (range 0 size)
-         (map (fn [nid]
-                (if (contains? id->const nid)
-                  (str nid "[label=\"" (get id->const nid) "=" nid "\"]")
-                  (str nid))))
-         (doall))))
-
 (defn find-first [f coll]
   (first (filter f coll)))
 
@@ -74,24 +67,13 @@
              e-rel
              (first rels-2)))))))
 
-(defn graphviz-edges [struc]
-  (if-let [edges (:entries (find-edge-relation struc))]
-    (map
-      (fn [[x y]]
-        (str x "->" y)) edges)
-    ""))
+;; ef gameplay
 
-(def graphviz-rankdir "rankdir=LR")
-(def graphviz-opts (str graphviz-rankdir ";" "ratio=\"compress\";"))
-(defn graphviz-repr [struc]
-  (->>
-    (concat (graphviz-nodes struc) (graphviz-edges struc))
-    (clojure.string/join ";")
-    ((fn [guts]
-       (str "digraph " (:name struc) " {" graphviz-opts guts "}")))))
-
+(defn pebble-id [n]
+  (str "p_{" n "}"))
 
 (defn make-ef-game [num-pebbles num-moves lstruc rstruc]
+  (assert (= (vocabulary lstruc) (vocabulary rstruc)))
   (let [k (max 0 num-pebbles)
         n (max k num-moves)]
     {
@@ -107,9 +89,6 @@
 
 (defn pebbles [game which-struc]
   (:pebbles (get game which-struc)))
-
-(defn pebble-id [n]
-  (str "x_" n))
 
 ; spoiler plays first
 (defn whose-turn [game]
@@ -136,35 +115,32 @@
       game)))
     
 
-(defn play-pebble [game pebble-num which-struc which-node]
+(defn play-pebble [game pebble which-struc which-node]
   (assert (contains? (legal-structures game) which-struc))
-  (let [pid (pebble-id pebble-num)
-        {struc :struc pebbles :pebbles}  (get game which-struc)
-        new-map {:struc struc :pebbles (assoc pebbles pid which-node)}]
+  (let [{struc :struc pebbles :pebbles}  (get game which-struc)
+        new-map {:struc struc :pebbles (assoc pebbles pebble which-node)}]
+
     (assert (structure-contains? struc which-node))
     (-pebble-played
       (assoc game 
              which-struc 
              {:struc struc
-              :pebbles (assoc pebbles pid which-node)}))))
+              :pebbles (assoc pebbles pebble which-node)}))))
 
 (defn play-pebbles [game pebble-num a-pebble b-pebble]
   (-> game
       (play-pebble pebble-num :A a-pebble)
       (play-pebble pebble-num :B b-pebble)))
 
+(defn value-set [m]
+  (into #{} (vals m)))
 
-; if the duplicator isn't done yet
-(defn game-over? [game]
-  (and
-    (= (whose-turn game) :spoiler)
-    (= (:moves game) (:current-move game))))
+(defn active-nodes [struc pebbles]
+  (merge (:constants struc) pebbles))
 
-(defn meaningful-exprs [game which-struc]
-  (let [{struc :struc pebbles :pebbles} (get game which-struc)
-        consts-and-pebbles (merge (:constants struc) pebbles)
-        id->names (clojure.set/map-invert consts-and-pebbles)
-        valid-nodes (into #{} (vals consts-and-pebbles))]
+(defn active-relations [struc pebbles]
+  (let [consts-and-pebbles (active-nodes struc pebbles)
+        valid-nodes (value-set consts-and-pebbles)]
     (->> (:relations struc)
          ; drop any elements of relations we can't express using constants and these pebbles
          (map
@@ -177,6 +153,24 @@
                       (:entries rel)))))
          ; drop any relations that have no active entries
          (filter (fn [rel] (< 0 (count (:entries rel)))))
+         )))
+
+(defn substructure [game which-struc]
+  (let [{struc :struc
+         pebbles :pebbles} (get game which-struc)
+        nodes (active-nodes struc pebbles)
+        edges (active-relations struc pebbles)]
+    {:name (:name struc)
+     :nodes (value-set nodes)
+     :relations edges
+     :constants (merge (:constants struc) pebbles)}
+    ))
+
+(defn meaningful-exprs [game which-struc]
+  (let [{struc :struc pebbles :pebbles} (get game which-struc)
+        consts-and-pebbles (active-nodes struc pebbles)
+        id->names (clojure.set/map-invert consts-and-pebbles)]
+    (->> (active-relations struc pebbles)
          ; split key, value
          (map (fn [rel]
                 [(relation-id rel) (:entries rel)]))
@@ -193,6 +187,19 @@
   ; not waiting for duplicator to play
   (when (= (whose-turn game) :spoiler)
     (not= (meaningful-exprs game :A) (meaningful-exprs game :B))))
+
+; if the duplicator isn't done yet
+(defn game-over? [game]
+  (and
+    (= (whose-turn game) :spoiler)
+    (or
+      (spoiler-wins? game)
+      (= (:moves game) (:current-move game)))))
+
+(defn winner [game]
+  (if (spoiler-wins? game)
+    :spoiler
+    :duplicator))
 
 (defn explain-difference [game]
   (assert (spoiler-wins? game))
@@ -214,14 +221,56 @@
                     (merge res {:A nax :B nbx}))))
            )))
 
+;; game-ui
 
-(defn eval-cmd [ui cmd]
-  (.append (.canvasBuffer ui) (PaddedLabel. cmd)))
+(defn player-string [player]
+  (get {:spoiler "Spoiler"
+        :duplicator "Duplicator"} player))
 
-(defn make-ui []
-  (pebble.UI. 
-    (reify CommandEvaluator
-      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
+(defn game-over-message [game]
+  (assert (game-over? game))
+    (str "Game Over: "
+         (player-string (winner game)) " wins."))
+
+(defn user-hint [game]
+  (if (game-over? game)
+    (game-over-message game)
+    (let [next-player (whose-turn game)]
+      (str "Next player: " (player-string next-player))
+      )))
+
+(defn test-game []
+  (-> (make-ef-game 2 2 (line-structure 5) (line-structure 4))
+      (play-pebbles "p_1" 1 1)
+      (play-pebbles "p_2" 3 2)))
+
+
+;; graphviz
+
+(defn graphviz-nodes [{size :size constants :constants}]
+  (let [id->const (clojure.set/map-invert constants)]
+    (->> (range 0 size)
+         (map (fn [nid]
+                (if (contains? id->const nid)
+                  (str nid "[label=\"" (get id->const nid) "=" nid "\"]")
+                  (str nid))))
+         (doall))))
+
+(defn graphviz-edges [struc]
+  (if-let [edges (:entries (find-edge-relation struc))]
+    (map
+      (fn [[x y]]
+        (str x "->" y)) edges)
+    ""))
+
+(def graphviz-rankdir "rankdir=LR")
+(def graphviz-opts (str graphviz-rankdir ";" "ratio=\"compress\";"))
+(defn graphviz-repr [struc]
+  (->>
+    (concat (graphviz-nodes struc) (graphviz-edges struc))
+    (clojure.string/join ";")
+    ((fn [guts]
+       (str "digraph " (:name struc) " {" graphviz-opts guts "}")))))
 
 (defn has-graphviz? []
   (try
@@ -233,6 +282,23 @@
 
 (defn graphviz-to-bytes [graphviz-src]
   (:out (clojure.java.shell/sh "dot" "-Tpng" :in graphviz-src :out-enc :bytes)))
+
+;; UI system
+
+; title for frame
+(def eacute "\u00e9")
+(def iuml "\u00ef")
+(def html-ef-games (str "Ehrenfeucht-Fra" iuml "ss" eacute " Games"))
+(defn eval-cmd [ui cmd]
+  (.append (.canvasBuffer ui) (PaddedLabel. cmd)))
+
+(defn make-ui []
+  (pebble.UI.
+    html-ef-games
+    (reify CommandEvaluator
+      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
+
+(def ui)
 
 (defn show-structure [struc]
   (if (has-graphviz?)
@@ -247,7 +313,7 @@
   (show-math "\\forall x,y: E(x,y)")
   (show-structure (line-structure 4)))
     
-; load in repl
+;; load in repl
 (when-not (and (resolve 'ui) (bound? (resolve 'ui)))
   (init))
 
