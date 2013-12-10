@@ -2,7 +2,7 @@
   (:require [clojure.math.combinatorics :as combo])
   (:use clojure.java.shell
         clojure.set)
-  (:import (pebble UI PaddedLabel CommandEvaluator))
+  (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
   (:gen-class))
 
 (defn tuple-from-index [arity size value]
@@ -47,7 +47,6 @@
       (keys consts))))
 
 (defn structure-contains? [{size :size} id]
-  (println "size=" size)
   (and
     (<= 0 id)
     (< id size)))
@@ -130,7 +129,7 @@
       :else #{:B})))
 
 ; increase move count if duplicator just played
-(defn pebble-played [game]
+(defn -pebble-played [game]
   (let [turns (:moves game)]
     (if (= (whose-turn game) :spoiler)
       (assoc game :moves (inc turns))
@@ -143,7 +142,7 @@
         {struc :struc pebbles :pebbles}  (get game which-struc)
         new-map {:struc struc :pebbles (assoc pebbles pid which-node)}]
     (assert (structure-contains? struc which-node))
-    (pebble-played
+    (-pebble-played
       (assoc game 
              which-struc 
              {:struc struc
@@ -201,8 +200,7 @@
         b-exprs (meaningful-exprs game :B)
         a-rels (set (keys a-exprs))
         b-rels (set (keys b-exprs))]
-      (->> a-rels
-           (#(do (println "tap: " %) %))
+      (->> (into #{} (concat a-rels b-rels))
            (map #(-> {:rel % :A (get a-exprs % []) :B (get b-exprs % [])}))
            ; keep only relations that are interesting
            (remove (fn [{ax :A bx :B}] (= ax bx)))
@@ -241,8 +239,12 @@
     (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr (line-structure 4))))  
     (.showText ui (str struc))))
 
+(defn show-math [latex]
+  (.showImage ui (RenderMath/renderLatex latex)))
+
 (defn init []
   (def ui (make-ui))
+  (show-math "\\forall x,y: E(x,y)")
   (show-structure (line-structure 4)))
     
 ; load in repl
