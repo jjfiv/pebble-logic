@@ -226,6 +226,14 @@
                     (merge res {:A nax :B nbx}))))
            )))
 
+(defn difference-to-latex [coll]
+  (map
+    (fn [{rel :rel a-exprs :A b-exprs :B}]
+       (map #(println "a" [rel %]) a-exprs)
+       (map #(println "b" [rel %]) b-exprs))
+    coll))
+
+
 ;; game-ui
 
 (defn player-string [player]
