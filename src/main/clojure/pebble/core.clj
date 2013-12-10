@@ -33,11 +33,14 @@
    :constants { "s" 0 "t" (dec size) }
    })
 
+(defn relation-id [rel]
+  (select-keys rel [:name :arity]))
+
 ; now we can require vocabularies to be equal for EF-game playing!
 (defn vocabulary [{rels :relations consts :constants}]
   (concat
     ; relations
-    (map #(select-keys % [:name :arity]) rels)
+    (map relation-id rels)
     ; constants
     (map 
       #(-> {:name % :arity 0})
@@ -146,6 +149,7 @@
              {:struc struc
               :pebbles (assoc pebbles pid which-node)}))))
 
+
 ; if the duplicator isn't done yet
 (defn game-over? [game]
   (and
@@ -155,6 +159,7 @@
 (defn meaningful-exprs [game which-struc]
   (let [{struc :struc pebbles :pebbles} (get game which-struc)
         consts-and-pebbles (merge (:constants struc) pebbles)
+        id->names (clojure.set/map-invert consts-and-pebbles)
         valid-nodes (into #{} (vals consts-and-pebbles))]
     (->> (:relations struc)
          ; drop any elements of relations we can't express using constants and these pebbles
@@ -167,10 +172,44 @@
                         (every?  #(contains? valid-nodes %) tuple))
                       (:entries rel)))))
          ; drop any relations that have no active entries
-         (filter (fn [rel] (< 0 (:entries rel))))
-         )))
+         (filter (fn [rel] (< 0 (count (:entries rel)))))
+         ; split key, value
+         (map (fn [rel]
+                [(relation-id rel) (:entries rel)]))
+         ; look up node names for ids
+         (map (fn [[rel-id entries]]
+                [rel-id 
+                 (map 
+                   (fn [tuple]
+                     (map #(get id->names %) tuple))
+                   entries)]))
+         (into {}))))
 
+(defn spoiler-wins? [game]
+  ; not waiting for duplicator to play
+  (when (= (whose-turn game) :spoiler)
+    (not= (meaningful-exprs game :A) (meaningful-exprs game :B))))
 
+(defn explain-difference [game]
+  (assert (spoiler-wins? game))
+  (let [a-exprs (meaningful-exprs game :A)
+        b-exprs (meaningful-exprs game :B)
+        a-rels (set (keys a-exprs))
+        b-rels (set (keys b-exprs))]
+      (->> a-rels
+           (#(do (println "tap: " %) %))
+           (map #(-> {:rel % :A (get a-exprs % []) :B (get b-exprs % [])}))
+           ; keep only relations that are interesting
+           (remove (fn [{ax :A bx :B}] (= ax bx)))
+           
+           ; keep only the tuples that are interesting
+           (map (fn [res]
+                  (let [ax (set (:A res))
+                        bx (set (:B res))
+                        nax (remove #(contains? bx %) ax)
+                        nbx (remove #(contains? ax %) bx)]
+                    (merge res {:A nax :B nbx}))))
+           )))
 
 
 (defn eval-cmd [ui cmd]
