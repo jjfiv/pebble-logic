@@ -235,13 +235,18 @@
 
 (defn graphviz-to-bytes [graphviz-src]
   (:out (clojure.java.shell/sh "dot" "-Tpng" :in graphviz-src :out-enc :bytes)))
-    
-(when-not (and (resolve 'ui) (bound? (resolve 'ui)))
+
+(defn show-structure [struc]
+  (if (has-graphviz?)
+    (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr (line-structure 4))))  
+    (.showText ui (str struc))))
+
+(defn init []
   (def ui (make-ui))
-  (.showBytesAsImage ui (graphviz-to-bytes "digraph G { rankdir=LR; 1[label=\"s=1\"];4[label=\"t=4\"];1->2->3->4}"))
-  )
+  (show-structure (line-structure 4)))
+    
+; load in repl
+(when-not (and (resolve 'ui) (bound? (resolve 'ui)))
+  (init))
 
-
-(defn -main [& args]
-  (println "Hello, World!"))
 
