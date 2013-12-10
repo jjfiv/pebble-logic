@@ -149,6 +149,11 @@
              {:struc struc
               :pebbles (assoc pebbles pid which-node)}))))
 
+(defn play-pebbles [game pebble-num a-pebble b-pebble]
+  (-> game
+      (play-pebble pebble-num :A a-pebble)
+      (play-pebble pebble-num :B b-pebble)))
+
 
 ; if the duplicator isn't done yet
 (defn game-over? [game]
