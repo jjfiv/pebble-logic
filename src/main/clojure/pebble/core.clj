@@ -35,6 +35,11 @@
    :constants { "s" 0 "t" (dec size) }
    })
 
+(defn struc-nodes [struc]
+  (if (contains? struc :nodes)
+    (:nodes struc)
+    (range 0 (:size struc))))
+
 (defn relation-id [rel]
   (select-keys rel [:name :arity]))
 
@@ -246,10 +251,10 @@
 
 
 ;; graphviz
-
-(defn graphviz-nodes [{size :size constants :constants}]
-  (let [id->const (clojure.set/map-invert constants)]
-    (->> (range 0 size)
+(defn graphviz-nodes [struc]
+  (let [constants (:constants struc)
+        id->const (clojure.set/map-invert constants)]
+    (->> (struc-nodes struc)
          (map (fn [nid]
                 (if (contains? id->const nid)
                   (str nid "[label=\"" (get id->const nid) "=" nid "\"]")
@@ -302,7 +307,7 @@
 
 (defn show-structure [struc]
   (if (has-graphviz?)
-    (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr (line-structure 4))))  
+    (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr struc)))  
     (.showText ui (str struc))))
 
 (defn show-math [latex]
