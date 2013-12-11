@@ -444,6 +444,12 @@
 (defn make-vocab [rels consts]
   {:relations rels :constants consts})
 
+(defn make-struc [id size rels consts]
+  {:name id
+   :size size
+   :relations rels
+   :constants consts})
+
 (defn de-define-vocab [id v]
   (swap! de-vocab-env assoc id v))
 
