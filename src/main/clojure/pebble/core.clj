@@ -1,6 +1,8 @@
 (ns pebble.core
+  (:require [clojure.core.match :only match])
   (:use clojure.java.shell
-        clojure.set)
+        clojure.set
+        )
   (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
   (:gen-class))
 
@@ -43,7 +45,7 @@
   (select-keys rel [:name :arity]))
 
 ; now we can require vocabularies to be equal for EF-game playing!
-(defn vocabulary [{rels :relations consts :constants}]
+(defn struc->vocabulary [{rels :relations consts :constants}]
   (concat
     ; relations
     (map relation-id rels)
@@ -77,7 +79,7 @@
   (str "p_{" n "}"))
 
 (defn make-ef-game [num-pebbles num-moves lstruc rstruc]
-  (assert (= (vocabulary lstruc) (vocabulary rstruc)))
+  (assert (= (struc->vocabulary lstruc) (struc->vocabulary rstruc)))
   (let [k (max 0 num-pebbles)
         n (max k num-moves)]
     {
@@ -434,6 +436,19 @@
     (clojure.string/blank? cmd) nil
     :else                       (show-text (str "game: " cmd)))
   (clear-command))
+
+;; descriptive environment section
+(def de-vocab-env (atom {}))
+(def de-struc-env (atom {}))
+
+(defn make-vocab [rels consts]
+  {:relations rels :constants consts})
+
+(defn de-define-vocab [id v]
+  (swap! de-vocab-env assoc id v))
+
+(defn de-define-struc [id s]
+  (swap! de-struc-env assoc id s))
 
 (defn de-cmd [ui cmd]
   (show-text cmd)
