@@ -111,25 +111,33 @@
       (< npa npb) #{:A}
       :else #{:B})))
 
-; increase move count if duplicator just played
-(defn -pebble-played [game]
-  (let [turns (:moves game)]
-    (if (= (whose-turn game) :spoiler)
-      (assoc game :moves (inc turns))
-      game)))
-    
+(defn next-structure [game]
+  (first (legal-structures game)))
 
 (defn play-pebble [game pebble which-struc which-node]
   (assert (contains? (legal-structures game) which-struc))
   (let [{struc :struc pebbles :pebbles}  (get game which-struc)
-        new-map {:struc struc :pebbles (assoc pebbles pebble which-node)}]
-
+        turns (:moves game)
+        player (whose-turn game)
+        new-struc {:struc struc 
+                   :pebbles (assoc pebbles pebble which-node)}
+        ]
+    ; invariants
+    (when (= player :duplicator)
+      (assert (= (:next-pebble game) pebble)))
     (assert (structure-contains? struc which-node))
-    (-pebble-played
-      (assoc game 
-             which-struc 
-             {:struc struc
-              :pebbles (assoc pebbles pebble which-node)}))))
+
+    (->
+      ; conditional updates
+      (if (= player :spoiler)
+        (-> game
+            (assoc :moves (inc turns))
+            (assoc :next-pebble pebble))
+        (-> game
+            (dissoc :next-pebble)))
+      ; unconditional updates
+      (assoc which-struc new-struc))
+    ))
 
 (defn play-pebbles [game pebble-num a-pebble b-pebble]
   (-> game
@@ -230,6 +238,9 @@
                     (merge res {:A nax :B nbx}))))
            )))
 
+(defn latex-text [txt]
+  (str "\\text{" txt "}"))
+
 (defn latex-and [coll]
   (clojure.string/join " \\wedge " coll))
 
@@ -248,9 +259,15 @@
   (let [phi-a (latex-and (map (fn [{rel :rel exprs :A}] (latex-rel rel exprs)) coll))
         phi-b (latex-and (map (fn [{rel :rel exprs :B}] (latex-rel rel exprs)) coll))]
     (cond
-      (empty? phi-a) (str phi-b " \\models " (latex-sname :B) " and " phi-b " \\not\\models " (latex-sname :A))
-      (empty? phi-b) (str phi-a " \\models " (latex-sname :A) " and " phi-a " \\not\\models " (latex-sname :B))
-      :else (str phi-a " \\models " (latex-sname :A) " but " phi-b " \\models " (latex-sname :B)))))
+      (empty? phi-a) (str phi-b " \\models " (latex-sname :B) 
+                          (latex-text " and ")
+                          phi-b " \\not\\models " (latex-sname :A))
+      (empty? phi-b) (str phi-a " \\models " (latex-sname :A)
+                          (latex-text " and ")
+                          phi-a " \\not\\models " (latex-sname :B))
+      :else (str phi-a " \\models " (latex-sname :A)
+                 (latex-text " but ")
+                 phi-b " \\models " (latex-sname :B)))))
 
 
 ;; game-ui
@@ -355,24 +372,67 @@
 
 ; board-drawing
 (defn show-board [ui game]
-  (show-math (str "\\text{Full Structure }" (latex-sname :A)))
+  (show-math (str (latex-text "Full Structure ") (latex-sname :A)))
   (show-structure (structure game :A))
-  (show-math (str "\\text{Full Structure }" (latex-sname :B)))
+  (show-math (str (latex-text "Full Structure ") (latex-sname :B)))
   (show-structure (structure game :B)))
 
 (defn show-substructure [ui game]
-  (show-math (str "\\text{Expressible Structure }" (latex-sname :A)))
+  (show-math (str (latex-text "Expressible Structure ") (latex-sname :A)))
   (show-structure (substructure game :A))
-  (show-math (str "\\text{Expressible Structure }" (latex-sname :B)))
+  (show-math (str (latex-text "Expressible Structure ") (latex-sname :B)))
   (show-structure (substructure game :B)))
 
+(defn user-turn-message [ui game]
+  (if (= (whose-turn game) :spoiler)
+    (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
+    (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
+                    (latex-sname (next-structure game)))))
+  (show-board ui game))
+
+(defn struc-name-to-which [txt]
+  (let [ltxt (.toLowerCase txt)]
+    (cond
+      (= "a" ltxt) :A
+      (= "b" ltxt) :B
+      :else nil)))
+
+
+(defn just-placed-pebble [ui game]
+  (if (game-over? game)
+    (show-text "Game Over!")
+    (user-turn-message ui game)))
+
 ;; command handling
+(defn pebble-cmd [ui cmd game]
+  (let [[cmd pebble-name struc-name node-id] (clojure.string/split cmd #"\s")
+        player (player-string (whose-turn game))
+        which (struc-name-to-which struc-name)
+        id (int (Integer/parseInt node-id))]
+    (assert (= cmd "pebble"))
+    (if (not which)
+      (show-text (str "No structure named: " struc-name ". Try A or B:"))
+      (do
+        (show-math (str (latex-text (str player " placing pebble " pebble-name " on node \\#" id " of ")) (latex-sname which)))
+        (update-game (play-pebble game pebble-name which id))
+        (just-placed-pebble ui (current-game))
+        )
+      )
+    ))
+
+
 (defn game-cmd [ui cmd game]
   (cond
-    (= "board" cmd) (show-board ui game)
-    (= "substructure" cmd) (show-substructure ui game)
-    (clojure.string/blank? cmd) (show-text (user-hint game))
-    :else (show-text (str "game: " cmd)))
+    (= "board" cmd)             (show-board ui game)
+    (= "substructure" cmd)      (show-substructure ui game)
+    (.startsWith cmd "pebble")  (pebble-cmd ui cmd game)
+
+    (contains? 
+      #{"?" "h" "help"} 
+      cmd)                      (user-turn-message ui game)
+
+    (clojure.string/blank? cmd) nil
+    :else                       (show-text (str "game: " cmd)))
   (clear-command))
 
 (defn de-cmd [ui cmd]

@@ -72,10 +72,8 @@ public class CanvasBuffer {
   });
 
   public void scrollDown() {
-    if (!scrollDownTimer.isRunning()) {
-      this.scrollDownTimer.setInitialDelay(20);
-      scrollDownTimer.start();
-    }
+    this.scrollDownTimer.setInitialDelay(20);
+    scrollDownTimer.start();
   }
 
   public void update() {
