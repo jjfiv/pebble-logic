@@ -170,6 +170,11 @@
      :constants (merge (:constants struc) pebbles)}
     ))
 
+(defn structure [game which-struc]
+  (let [{struc :struc
+         pebbles :pebbles} (get game which-struc)]
+    (assoc struc :constants (merge (:constants struc) pebbles))))
+
 (defn meaningful-exprs [game which-struc]
   (let [{struc :struc pebbles :pebbles} (get game which-struc)
         consts-and-pebbles (active-nodes struc pebbles)
@@ -236,13 +241,16 @@
                    ")")))
        (latex-and)))
 
+(defn latex-sname [id]
+  (get {:A "\\mathcal{A}" :B "\\mathcal{B}"} id))
+
 (defn difference-to-latex [coll]
   (let [phi-a (latex-and (map (fn [{rel :rel exprs :A}] (latex-rel rel exprs)) coll))
         phi-b (latex-and (map (fn [{rel :rel exprs :B}] (latex-rel rel exprs)) coll))]
     (cond
-      (empty? phi-a) (str phi-b " \\models \\mathcal{B} and " phi-b " \\not\\models \\mathcal{A}")
-      (empty? phi-b) (str phi-a " \\models \\mathcal{A} and " phi-a " \\not\\models \\mathcal{B}")
-      :else (str phi-a " \\models \\mathcal{A} but " phi-b " \\models \\mathcal{B}"))))
+      (empty? phi-a) (str phi-b " \\models " (latex-sname :B) " and " phi-b " \\not\\models " (latex-sname :A))
+      (empty? phi-b) (str phi-a " \\models " (latex-sname :A) " and " phi-a " \\not\\models " (latex-sname :B))
+      :else (str phi-a " \\models " (latex-sname :A) " but " phi-b " \\models " (latex-sname :B)))))
 
 
 ;; game-ui
@@ -258,11 +266,23 @@
          " wins: "
          (difference-to-latex (explain-difference game))))
 
+(def -cur-game (atom {}))
+(defn update-game [game]
+  (swap! -cur-game (fn [prev-game] game)))
+(defn current-game []
+  (deref -cur-game))
+
 (defn user-hint [game]
   (if (game-over? game)
     (game-over-message game)
     (let [next-player (whose-turn game)]
-      (str "Next player: " (player-string next-player))
+      (str 
+        "Next player: "
+        (player-string next-player)
+        (if (= next-player :duplicator)
+          (str " needs to play on structure: " (latex-sname (first (legal-structures game))))
+          "")
+        )
       )))
 
 (defn test-game []
@@ -273,6 +293,10 @@
 (defn test-game-2 []
   (-> (make-ef-game 2 2 (line-structure 5) (line-structure 4))
       (play-pebbles "p_1" 1 1)))
+
+(defn test-game-3 []
+  (-> (make-ef-game 2 2 (line-structure 5) (line-structure 4))
+      (play-pebble "p_1" :A 1)))
 
 ;; graphviz
 (defn graphviz-nodes [struc]
@@ -312,21 +336,7 @@
 (defn graphviz-to-bytes [graphviz-src]
   (:out (clojure.java.shell/sh "dot" "-Tpng" :in graphviz-src :out-enc :bytes)))
 
-;; UI system
-
-; title for frame
-(def eacute "\u00e9")
-(def iuml "\u00ef")
-(def html-ef-games (str "Ehrenfeucht-Fra" iuml "ss" eacute " Games"))
-(defn eval-cmd [ui cmd]
-  (.append (.canvasBuffer ui) (PaddedLabel. cmd)))
-
-(defn make-ui []
-  (pebble.UI.
-    html-ef-games
-    (reify CommandEvaluator
-      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
-
+;; UI system - local ui variable
 (def ui)
 
 (defn show-structure [struc]
@@ -336,6 +346,56 @@
 
 (defn show-math [latex]
   (.showImage ui (RenderMath/renderLatex latex)))
+
+(defn show-text [text]
+  (.showText ui text))
+
+(defn clear-command []
+  (-> ui (.commandField) (.setText "")))
+
+; board-drawing
+(defn show-board [ui game]
+  (show-math (str "\\text{Full Structure }" (latex-sname :A)))
+  (show-structure (structure game :A))
+  (show-math (str "\\text{Full Structure }" (latex-sname :B)))
+  (show-structure (structure game :B)))
+
+(defn show-substructure [ui game]
+  (show-math (str "\\text{Expressible Structure }" (latex-sname :A)))
+  (show-structure (substructure game :A))
+  (show-math (str "\\text{Expressible Structure }" (latex-sname :B)))
+  (show-structure (substructure game :B)))
+
+;; command handling
+(defn game-cmd [ui cmd game]
+  (cond
+    (= "board" cmd) (show-board ui game)
+    (= "substructure" cmd) (show-substructure ui game)
+    (clojure.string/blank? cmd) (show-text (user-hint game))
+    :else (show-text (str "game: " cmd)))
+  (clear-command))
+
+(defn de-cmd [ui cmd]
+  (show-text cmd)
+  (clear-command))
+
+(defn eval-cmd [ui cmd]
+  (if (not (empty? (current-game)))
+    (game-cmd ui cmd (current-game))
+    (de-cmd ui cmd)))
+
+;; startup section
+
+; title for frame
+(def eacute "\u00e9")
+(def iuml "\u00ef")
+(def html-ef-games (str "Ehrenfeucht-Fra" iuml "ss" eacute " Games"))
+
+(defn make-ui []
+  (pebble.UI.
+    html-ef-games
+    (reify CommandEvaluator
+      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
 
 (defn init []
   (def ui (make-ui))
