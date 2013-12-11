@@ -1,5 +1,4 @@
 (ns pebble.core
-  (:require [clojure.math.combinatorics :as combo])
   (:use clojure.java.shell
         clojure.set)
   (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
@@ -226,12 +225,24 @@
                     (merge res {:A nax :B nbx}))))
            )))
 
+(defn latex-and [coll]
+  (clojure.string/join " \\wedge " coll))
+
+(defn latex-rel [{rel-name :name} exprs]
+  (->> exprs
+       (map (fn [tuple]
+              (str rel-name "("
+                   (clojure.string/join "," tuple)
+                   ")")))
+       (latex-and)))
+
 (defn difference-to-latex [coll]
-  (map
-    (fn [{rel :rel a-exprs :A b-exprs :B}]
-       (map #(println "a" [rel %]) a-exprs)
-       (map #(println "b" [rel %]) b-exprs))
-    coll))
+  (let [phi-a (latex-and (map (fn [{rel :rel exprs :A}] (latex-rel rel exprs)) coll))
+        phi-b (latex-and (map (fn [{rel :rel exprs :B}] (latex-rel rel exprs)) coll))]
+    (cond
+      (empty? phi-a) (str phi-b " \\models \\mathcal{B} and " phi-b " \\not\\models \\mathcal{A}")
+      (empty? phi-b) (str phi-a " \\models \\mathcal{A} and " phi-a " \\not\\models \\mathcal{B}")
+      :else (str phi-a " \\models \\mathcal{A} but " phi-b " \\models \\mathcal{B}"))))
 
 
 ;; game-ui
@@ -242,8 +253,10 @@
 
 (defn game-over-message [game]
   (assert (game-over? game))
-    (str "Game Over: "
-         (player-string (winner game)) " wins."))
+    (str "Game Over "
+         (player-string (winner game))
+         " wins: "
+         (difference-to-latex (explain-difference game))))
 
 (defn user-hint [game]
   (if (game-over? game)
@@ -257,6 +270,9 @@
       (play-pebbles "p_1" 1 1)
       (play-pebbles "p_2" 3 2)))
 
+(defn test-game-2 []
+  (-> (make-ef-game 2 2 (line-structure 5) (line-structure 4))
+      (play-pebbles "p_1" 1 1)))
 
 ;; graphviz
 (defn graphviz-nodes [struc]
