@@ -455,20 +455,28 @@
     REL_DECL = (ID ':' NUMBER)
     CONST_DECL = ID
 
-    FORM = ANDFORM (('->'|'<->') FORM)?
+    FORM = FORM (('->'|'<->') FORM)* |
+           ANDFORM
 
-    ANDFORM = NOTFORM | ANDFORM ('|'|'&'|'^') NOTFORM
+    ANDFORM = ANDFORM (('|'|'&'|'^') ANDFORM)* |
+              NOTFORM |
+              QFORM
 
-    NOTFORM = ('~'|'!') NOTFORM | QFORM
-    QFORM = ATOMIC
+    NOTFORM = <('~'|'!')> ANDFORM
+    <QFORM> = ATOMIC
 
-    ATOMIC = ATERM ('='|'!='|'<='|'<'|'>'|'>=') ATERM |
+    CMP = '='|'!='|'<='|'<'|'>'|'>='
+    <ATOMIC> = ATOMIC CMP ATERM |
              <'('> FORM <')'> |
-             'true' | '\\t' | 'false' | '\\f'
+             ATERM |
+             TRUE | FALSE
     ATERM = ATERM ('+'|'-') MTERM | MTERM
-    MTERM = MTERM '*' STERM | STERM
-    STERM = ID | NUMBER | <'('> ATERM <')'>
+    MTERM = MTERM ('*'|'/') STERM | 
+            STERM
+    <STERM> = ID | NUMBER | <'('> ATERM <')'>
 
+    TRUE = <'true' | '\\t'>
+    FALSE = <'false' | '\\f'>
     FORALL = <'\\\\A' | '\\\\forall'>
     EXISTS = <'\\\\E' | '\\\\exists'>
     ASSIGN = <(':='|'is')>
@@ -480,35 +488,78 @@
 (defn de-unhandled [what]
   (throw (Exception. (str "Eval: unhandled: ``" what "''"))))
 
-(defn de-eval-form [form]
-  (println "de-eval-form " form)
+(defn de-eval-op [op lhs rhs]
+  (cond
+    (= op "&") (and lhs rhs)
+    (= op "|") (or lhs rhs)
+    (= op "*") (* (int lhs) (int rhs))
+    (= op "+") (* (int lhs) (int rhs))
+    (= op "-") (* (int lhs) (int rhs))
+    (= op "/") (int (/ (int lhs) (int rhs)))
+    :else
+    (do
+      (println "apply" op lhs rhs)
+      (de-unhandled op))
+  ))
+
+(defn de-eval-infix [[_ lhs op rhs] env]
+  (de-eval-op op (de-eval-form lhs env) (de-eval-form rhs env)))
+
+
+(defn de-eval-form [form env]
   (let [head (first form)
-        size (count form)]
+        args (rest form)
+        size (count args)]
     (cond
 
       ; catch-all nesting
-      (and (= 2 size) (contains? #{:FORM :ANDFORM :NOTFORM :QFORM} head))
-      (de-eval-form (first (rest form)))
+      (and (= 1 size)
+           (contains?
+             #{:FORM :QFORM :ANDFORM :ATERM :MTERM}
+             head))
+      (de-eval-form (first args) env)
 
-      (= :ANDFORM (first form))
-      (let [[_ lhs op rhs] form]
-        (println "apply" op (de-eval-form lhs) (de-eval-form rhs)))
+      (and (= 3 size)
+           (contains? 
+             #{:ANDFORM :MTERM :ATERM}
+             head))
+      (de-eval-infix form env)
 
-      (= :ATOMIC (first form))
-      (let [[_ item] form]
-        (println "item" item)
-        item)
+      (= :NOTFORM head)
+      (not (de-eval-form (first args) env))
 
-      :else (de-unhandled (print-str (first form) (dec (count form)))))
+      (= :ID head)
+      (let [id (first args)]
+        (if (contains? env id)
+          (get env id)
+          (throw (Exception. (str "Unbound variable " id)))))
+
+      (= :NUMBER head)
+      (int (read-string (first args)))
+
+      (= :TRUE head) true
+      (= :FALSE head) false
+
+      :else 
+      (do
+        (println "de-eval-form " form)
+        (de-unhandled (print-str (first form) (dec (count form))))))
     ))
 
-  
+(assert (= (de-eval (de-lang "eval true&true")) true))
+(assert (= (de-eval (de-lang "eval false&true")) false))
+(assert (= (de-eval (de-lang "eval ~true")) false))
+(assert (= (de-eval (de-lang "eval ~true&true")) false))
+
+(def de-env {})
 
 (defn de-eval-cmd [[head & [tail]]]
-  (println "de-eval-cmd" head)
   (cond
-    (= "eval" head) (de-eval-form tail)
-    :else (de-unhandled head)))
+    (= "eval" head) (de-eval-form tail de-env)
+    :else 
+    (do
+      (println "de-eval-cmd" head)
+      (de-unhandled head))))
 
 (defn de-eval [form]
   (case (first form)
