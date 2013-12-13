@@ -443,9 +443,10 @@
   (insta/parser 
     "
     ROOT = CMD '.'?
-    CMD = ID ASSIGN CMDEXPR
+    CMD = ID ASSIGN CMDEXPR |
+          'eval' FORM
     CMDEXPR = 'new' 'vocabulary' <'{'> DEFS <'}'> |
-              'new' 'structure' <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'>
+              'new' 'structure' <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'> 
 
     REL_DEF = REL_DECL ASSIGN FORM
     CONST_DEF = CONST_DECL ASSIGN ATERM
@@ -476,6 +477,44 @@
     " 
     :auto-whitespace (insta/parser "WS = #'\\s+'")))
 
+(defn de-unhandled [what]
+  (throw (Exception. (str "Eval: unhandled: ``" what "''"))))
+
+(defn de-eval-form [form]
+  (println "de-eval-form " form)
+  (let [head (first form)
+        size (count form)]
+    (cond
+
+      ; catch-all nesting
+      (and (= 2 size) (contains? #{:FORM :ANDFORM :NOTFORM :QFORM} head))
+      (de-eval-form (first (rest form)))
+
+      (= :ANDFORM (first form))
+      (let [[_ lhs op rhs] form]
+        (println "apply" op (de-eval-form lhs) (de-eval-form rhs)))
+
+      (= :ATOMIC (first form))
+      (let [[_ item] form]
+        (println "item" item)
+        item)
+
+      :else (de-unhandled (print-str (first form) (dec (count form)))))
+    ))
+
+  
+
+(defn de-eval-cmd [[head & [tail]]]
+  (println "de-eval-cmd" head)
+  (cond
+    (= "eval" head) (de-eval-form tail)
+    :else (de-unhandled head)))
+
+(defn de-eval [form]
+  (case (first form)
+    :ROOT (de-eval (first (rest form)))
+    :CMD (de-eval-cmd (rest form))
+    (de-unhandled form)))
 
 
 ;; descriptive environment section
