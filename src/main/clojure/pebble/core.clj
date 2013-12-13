@@ -1,7 +1,7 @@
 (ns pebble.core
-  (:require [clojure.core.match :only match])
   (:use clojure.java.shell
         clojure.set
+        [clojure.core.match :only [match]]
         )
   (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
   (:gen-class))
@@ -373,24 +373,24 @@
   (-> ui (.commandField) (.setText "")))
 
 ; board-drawing
-(defn show-board [ui game]
+(defn show-board [game]
   (show-math (str (latex-text "Full Structure ") (latex-sname :A)))
   (show-structure (structure game :A))
   (show-math (str (latex-text "Full Structure ") (latex-sname :B)))
   (show-structure (structure game :B)))
 
-(defn show-substructure [ui game]
+(defn show-substructure [game]
   (show-math (str (latex-text "Expressible Structure ") (latex-sname :A)))
   (show-structure (substructure game :A))
   (show-math (str (latex-text "Expressible Structure ") (latex-sname :B)))
   (show-structure (substructure game :B)))
 
-(defn user-turn-message [ui game]
+(defn user-turn-message [game]
   (if (= (whose-turn game) :spoiler)
     (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
     (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
                     (latex-sname (next-structure game)))))
-  (show-board ui game))
+  (show-board game))
 
 (defn struc-name-to-which [txt]
   (let [ltxt (.toLowerCase txt)]
@@ -400,13 +400,13 @@
       :else nil)))
 
 
-(defn just-placed-pebble [ui game]
+(defn just-placed-pebble [game]
   (if (game-over? game)
     (show-text "Game Over!")
-    (user-turn-message ui game)))
+    (user-turn-message game)))
 
 ;; command handling
-(defn pebble-cmd [ui cmd game]
+(defn pebble-cmd [cmd game]
   (let [[cmd pebble-name struc-name node-id] (clojure.string/split cmd #"\s")
         player (player-string (whose-turn game))
         which (struc-name-to-which struc-name)
@@ -417,21 +417,21 @@
       (do
         (show-math (str (latex-text (str player " placing pebble " pebble-name " on node \\#" id " of ")) (latex-sname which)))
         (update-game (play-pebble game pebble-name which id))
-        (just-placed-pebble ui (current-game))
+        (just-placed-pebble (current-game))
         )
       )
     ))
 
 
-(defn game-cmd [ui cmd game]
+(defn game-cmd [cmd game]
   (cond
-    (= "board" cmd)             (show-board ui game)
-    (= "substructure" cmd)      (show-substructure ui game)
-    (.startsWith cmd "pebble")  (pebble-cmd ui cmd game)
+    (= "board" cmd)             (show-board game)
+    (= "substructure" cmd)      (show-substructure game)
+    (.startsWith cmd "pebble")  (pebble-cmd cmd game)
 
     (contains? 
       #{"?" "h" "help"} 
-      cmd)                      (user-turn-message ui game)
+      cmd)                      (user-turn-message game)
 
     (clojure.string/blank? cmd) nil
     :else                       (show-text (str "game: " cmd)))
@@ -441,8 +441,15 @@
 (def de-vocab-env (atom {}))
 (def de-struc-env (atom {}))
 
+(defn make-relation [id arity]
+  {:name id :arity arity})
+
+(defn make-constant [id]
+  id)
+
 (defn make-vocab [rels consts]
-  {:relations rels :constants consts})
+  {:relations (into #{} rels) 
+   :constants (into #{} consts)})
 
 (defn make-struc [id size rels consts]
   {:name id
@@ -456,14 +463,35 @@
 (defn de-define-struc [id s]
   (swap! de-struc-env assoc id s))
 
-(defn de-cmd [ui cmd]
-  (show-text cmd)
-  (clear-command))
+(defn new-vocab [forms]
+  (->> forms
+       (map
+         #(cond
+            (= (first %) 'relation-def) (let [[_ id arity] %] 
+                                          [:relation (make-relation id arity)])
+            (= (first %) 'constant-def) (let [[_ id] %] 
+                                          [:constant (make-constant id)])
+           )
+         )))
 
-(defn eval-cmd [ui cmd]
+(defn handle-cmd [form]
+  (cond
+    (= (take 2 form) '[new vocab]) (new-vocab (drop 2 form))
+    :else (show-text (str "Unknown Command:" (first form)))))
+
+(defn de-cmd [cmd]
+  (try
+    (let [form (read-string cmd)]
+      (show-text (pr-str form))
+      (handle-cmd form)
+      (clear-command))
+    (catch RuntimeException e
+      (show-text (str "Error: " (.getMessage e))))))
+
+(defn eval-cmd [cmd]
   (if (not (empty? (current-game)))
-    (game-cmd ui cmd (current-game))
-    (de-cmd ui cmd)))
+    (game-cmd cmd (current-game))
+    (de-cmd cmd)))
 
 ;; startup section
 
@@ -476,7 +504,7 @@
   (pebble.UI.
     html-ef-games
     (reify CommandEvaluator
-      (evaluate [this ui cmd] (eval-cmd ui cmd)))))
+      (evaluate [this ui cmd] (eval-cmd cmd)))))
 
 (defn init []
   (def ui (make-ui))
