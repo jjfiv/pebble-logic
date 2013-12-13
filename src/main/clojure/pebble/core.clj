@@ -1,7 +1,7 @@
 (ns pebble.core
   (:use clojure.java.shell
         clojure.set
-        [clojure.core.match :only [match]]
+        [instaparse.core :as insta]
         )
   (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
   (:gen-class))
@@ -436,6 +436,47 @@
     (clojure.string/blank? cmd) nil
     :else                       (show-text (str "game: " cmd)))
   (clear-command))
+
+;; descriptive environment tokenizer
+
+(def de-lang
+  (insta/parser 
+    "
+    ROOT = CMD '.'?
+    CMD = ID ASSIGN CMDEXPR
+    CMDEXPR = 'new' 'vocabulary' <'{'> DEFS <'}'> |
+              'new' 'structure' <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'>
+
+    REL_DEF = REL_DECL ASSIGN FORM
+    CONST_DEF = CONST_DECL ASSIGN ATERM
+
+    DEFS = (REL_DECL | CONST_DECL) (<','> (REL_DECL | CONST_DECL))*
+    REL_DECL = (ID ':' NUMBER)
+    CONST_DECL = ID
+
+    FORM = ANDFORM (('->'|'<->') FORM)?
+
+    ANDFORM = NOTFORM | ANDFORM ('|'|'&'|'^') NOTFORM
+
+    NOTFORM = ('~'|'!') NOTFORM | QFORM
+    QFORM = ATOMIC
+
+    ATOMIC = ATERM ('='|'!='|'<='|'<'|'>'|'>=') ATERM |
+             <'('> FORM <')'> |
+             'true' | '\\t' | 'false' | '\\f'
+    ATERM = ATERM ('+'|'-') MTERM | MTERM
+    MTERM = MTERM '*' STERM | STERM
+    STERM = ID | NUMBER | <'('> ATERM <')'>
+
+    FORALL = <'\\\\A' | '\\\\forall'>
+    EXISTS = <'\\\\E' | '\\\\exists'>
+    ASSIGN = <(':='|'is')>
+    ID = #'[a-zA-Z][a-zA-Z0-9]*'
+    NUMBER = (#'[0-9]+')
+    " 
+    :auto-whitespace (insta/parser "WS = #'\\s+'")))
+
+
 
 ;; descriptive environment section
 (def de-vocab-env (atom {}))
