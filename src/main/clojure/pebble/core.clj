@@ -3,16 +3,18 @@
         clojure.set
         [instaparse.core :as insta]
         )
-  (:import (pebble UI PaddedLabel CommandEvaluator RenderMath))
+  (:import [pebble UI PaddedLabel CommandEvaluator RenderMath
+                   Tuple Relation])
   (:gen-class))
 
 ;; logical structure utils
 
 (defn tuple-from-index [arity size value]
-  (->> (range 0 arity)
-       (map #(mod (int (/ value (Math/pow size %))) size))
-       (reverse)
-       (into [])))
+  (pebble.Tuple. arity size value))
+;  (->> (range 0 arity)
+;       (map #(mod (int (/ value (Math/pow size %))) size))
+;       (reverse)
+;       (into [])))
 
 (defn all-tuples [arity size]
   (->> (range 0 (int (Math/pow size arity)))
@@ -24,15 +26,24 @@
        (into #{})))
 
 (defn relation [name arity func size]
-  {:name name
-   :arity arity
-   :entries (eval-relation arity size func)})
+  (pebble.Relation. name arity (eval-relation arity size func)))
+
+(defn constant [name value]
+  (pebble.Constant. name value))
+
+ ; {:name name
+ ;  :arity arity
+ ;  :entries (eval-relation arity size func)})
 
 (defn line-structure [size]
   {
    :name (str "l" size)
    :size size 
-   :relations #{ (relation "E" 2 (fn [[x y]] (= (inc x) y)) size) }
+   :relations #{ (relation "E" 2 
+                           (fn [tuple] (let [x (.get tuple 0)
+                                             y (.get tuple 1)]
+                                         (= (inc x) y)))
+                           size) }
    :constants { "s" 0 "t" (dec size) }
    })
 
@@ -42,7 +53,7 @@
     (range 0 (:size struc))))
 
 (defn relation-id [rel]
-  (select-keys rel [:name :arity]))
+  {:name (.name rel) :arity (.arity rel)})
 
 ; now we can require vocabularies to be equal for EF-game playing!
 (defn struc->vocabulary [{rels :relations consts :constants}]
@@ -64,12 +75,12 @@
 
 (defn find-edge-relation [{rels :relations}]
   (->> rels
-       (filter #(= (:arity %) 2))
+       (filter #(= (.arity %) 2))
        ; select "E" predicate if available else any 2-relation
        ((fn [rels-2]
          (if (empty? rels-2)
            nil
-           (if-let [e-rel (find-first #(= (:name %) "E") rels-2)]
+           (if-let [e-rel (find-first #(= (.name %) "E") rels-2)]
              e-rel
              (first rels-2)))))))
 
@@ -159,14 +170,14 @@
          ; drop any elements of relations we can't express using constants and these pebbles
          (map
            (fn [rel]
-             (assoc rel 
-                    :entries
-                    (filter
-                      (fn [tuple]
-                        (every?  #(contains? valid-nodes %) tuple))
-                      (:entries rel)))))
+             (.withNewEntries
+               rel 
+               (filter
+                 (fn [tuple]
+                   (every?  #(contains? valid-nodes %) (.data tuple)))
+                 (.entries rel)))))
          ; drop any relations that have no active entries
-         (filter (fn [rel] (< 0 (count (:entries rel)))))
+         (filter (fn [rel] (not (empty? (.entries rel)))))
          )))
 
 (defn substructure [game which-struc]
@@ -192,7 +203,7 @@
     (->> (active-relations struc pebbles)
          ; split key, value
          (map (fn [rel]
-                [(relation-id rel) (:entries rel)]))
+                [(relation-id rel) (.entries rel)]))
          ; look up node names for ids
          (map (fn [[rel-id entries]]
                 [rel-id 
@@ -329,10 +340,13 @@
          (doall))))
 
 (defn graphviz-edges [struc]
-  (if-let [edges (:entries (find-edge-relation struc))]
+  (if-let [edges (.entries (find-edge-relation struc))]
     (map
-      (fn [[x y]]
-        (str x "->" y)) edges)
+      (fn [tuple]
+        (let [x (.get tuple 0)
+              y (.get tuple 1)]
+          (str x "->" y)))
+      edges)
     ""))
 
 (def graphviz-rankdir "rankdir=LR")
@@ -490,6 +504,9 @@
     " 
     :auto-whitespace (insta/parser "WS = #'\\s+'")))
 
+(declare de-eval-form)
+(declare de-eval)
+
 (defn de-unhandled [what]
   (throw (Exception. (str "Eval: unhandled: ``" what "''"))))
 
@@ -540,7 +557,7 @@
 
       (and (= 3 size)
            (contains? 
-             #{:FORM :ANDFORM :MTERM :ATERM}
+             #{:FORM :QFORM :ANDFORM :MTERM :ATERM}
              head))
       (de-eval-infix form env)
 
@@ -569,18 +586,13 @@
         (de-unhandled (print-str head size))))
     ))
 
-(assert (= (de-eval (de-lang "eval true&true")) true))
-(assert (= (de-eval (de-lang "eval false&true")) false))
-(assert (= (de-eval (de-lang "eval ~true")) false))
-(assert (= (de-eval (de-lang "eval ~true&true")) false))
-
 (def de-env {})
 
 (defn de-rel-func [relform arity]
   (let [input-vars (map #(str "x" (inc %)) (range 0 arity))]
     (fn [tuple]
       (let [env 
-            (into {} (map #(-> [%1 %2]) input-vars tuple))]
+            (into {} (map #(-> [%1 %2]) input-vars (.data tuple)))]
         (de-eval-form relform env))
       )
     ))
@@ -603,7 +615,7 @@
       (= :CONST_DEF kind)
       (let [{id :id} (de-parse-decl decl)
             value (de-eval-form valf de-env)]
-        {:name id :arity 0 :value value})
+        (constant id value))
 
       :else (de-unhandled kind))))
 
@@ -619,10 +631,10 @@
             ]
         {:name id
          :size size
-         :relations (filter #(<= 1 (:arity %)) parsed-defs)
+         :relations (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
          :constants (->> parsed-defs
-                         (filter #(= 0 (:arity %)))
-                         (map (fn [{id :name vl :value}] [id vl]))
+                         (filter #(.isConstant %))
+                         (map #(-> [(.name %) (.value %)]))
                          (into {}))
          })
       
@@ -654,6 +666,10 @@
     :CMD (de-eval-cmd (rest form))
     (de-unhandled form)))
 
+(assert (= (de-eval (de-lang "eval true&true")) true))
+(assert (= (de-eval (de-lang "eval false&true")) false))
+(assert (= (de-eval (de-lang "eval ~true")) false))
+(assert (= (de-eval (de-lang "eval ~true&true")) false))
 
 ;; descriptive environment section
 (def de-vocab-env (atom {}))
@@ -705,4 +721,5 @@
 (when-not (and (resolve 'ui) (bound? (resolve 'ui)))
   (init))
 
+(test-game)
 
