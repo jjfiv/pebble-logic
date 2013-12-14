@@ -155,16 +155,16 @@
 (defn active-relations [struc pebbles]
   (let [consts-and-pebbles (active-nodes struc pebbles)
         valid-nodes (value-set consts-and-pebbles)]
-    (->> (:relations struc)
+    (->> (.relations struc)
          ; drop any elements of relations we can't express using constants and these pebbles
          (map
            (fn [rel]
              (.withNewEntries
                rel 
-               (filter
+               (into #{} (filter
                  (fn [tuple]
                    (every?  #(contains? valid-nodes %) (.data tuple)))
-                 (.entries rel)))))
+                 (.entries rel))))))
          ; drop any relations that have no active entries
          (filter (fn [rel] (not (empty? (.entries rel)))))
          )))
@@ -196,6 +196,7 @@
         consts-and-pebbles (active-nodes struc pebbles)
         id->names (clojure.set/map-invert consts-and-pebbles)]
     (->> (active-relations struc pebbles)
+
          ; split key, value
          (map (fn [rel]
                 [(relation-id rel) (.entries rel)]))
@@ -204,7 +205,7 @@
                 [rel-id 
                  (map 
                    (fn [tuple]
-                     (map #(get id->names %) tuple))
+                     (map #(get id->names %) (.data tuple)))
                    entries)]))
          (into {}))))
 
