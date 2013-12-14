@@ -1,4 +1,4 @@
-(ns pebble.core
+(ns edu.umass.vde.core
   (:use clojure.java.shell
         clojure.set
         [instaparse.core :as insta]
@@ -11,10 +11,6 @@
 
 (defn tuple-from-index [arity size value]
   (Tuple. arity size value))
-;  (->> (range 0 arity)
-;       (map #(mod (int (/ value (Math/pow size %))) size))
-;       (reverse)
-;       (into [])))
 
 (defn all-tuples [arity size]
   (->> (range 0 (int (Math/pow size arity)))
