@@ -3,14 +3,14 @@
         clojure.set
         [instaparse.core :as insta]
         )
-  (:import [pebble UI PaddedLabel CommandEvaluator RenderMath
-                   Tuple Relation])
+  (:import [edu.umass.vde UI PaddedLabel CommandEvaluator RenderMath
+                   Tuple Relation Constant Structure])
   (:gen-class))
 
 ;; logical structure utils
 
 (defn tuple-from-index [arity size value]
-  (pebble.Tuple. arity size value))
+  (Tuple. arity size value))
 ;  (->> (range 0 arity)
 ;       (map #(mod (int (/ value (Math/pow size %))) size))
 ;       (reverse)
@@ -26,14 +26,10 @@
        (into #{})))
 
 (defn relation [name arity func size]
-  (pebble.Relation. name arity (eval-relation arity size func)))
+  (Relation. name arity (eval-relation arity size func)))
 
 (defn constant [name value]
-  (pebble.Constant. name value))
-
- ; {:name name
- ;  :arity arity
- ;  :entries (eval-relation arity size func)})
+  (Constant. name value))
 
 (defn line-structure [size]
   {
@@ -707,7 +703,7 @@
 (def html-ef-games (str "Ehrenfeucht-Fra" iuml "ss" eacute " Games"))
 
 (defn make-ui []
-  (pebble.UI.
+  (UI.
     html-ef-games
     (reify CommandEvaluator
       (evaluate [this ui cmd] (eval-cmd cmd)))))

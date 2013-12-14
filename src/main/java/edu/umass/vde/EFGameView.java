@@ -1,4 +1,4 @@
-package pebble;
+package edu.umass.vde;
 
 import javax.swing.JPanel;
 
