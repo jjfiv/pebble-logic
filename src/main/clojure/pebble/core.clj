@@ -445,8 +445,10 @@
     ROOT = CMD '.'?
     CMD = ID ASSIGN CMDEXPR |
           'eval' FORM
-    CMDEXPR = 'new' 'vocabulary' <'{'> DEFS <'}'> |
-              'new' 'structure' <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'> 
+    <CMDEXPR> =  NEW_VOCAB | NEW_STRUC
+
+    NEW_VOCAB = <'new'> <'vocabulary' | 'vocab'> <'{'> DEFS <'}'>
+    NEW_STRUC = <'new'> <'structure' | 'struc'> <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'> 
 
     REL_DEF = REL_DECL ASSIGN FORM
     CONST_DEF = CONST_DECL ASSIGN ATERM
@@ -455,8 +457,7 @@
     REL_DECL = (ID ':' NUMBER)
     CONST_DECL = ID
 
-    FORM = FORM (('->'|'<->') FORM)* |
-           ANDFORM
+    FORM = ANDFORM (('->'|'<->') FORM)*
 
     ANDFORM = ANDFORM (('|'|'&'|'^') ANDFORM)* |
               NOTFORM |
@@ -521,7 +522,7 @@
 
       (and (= 3 size)
            (contains? 
-             #{:ANDFORM :MTERM :ATERM}
+             #{:FORM :ANDFORM :MTERM :ATERM}
              head))
       (de-eval-infix form env)
 
@@ -543,7 +544,7 @@
       :else 
       (do
         (println "de-eval-form " form)
-        (de-unhandled (print-str (first form) (dec (count form))))))
+        (de-unhandled (print-str head size))))
     ))
 
 (assert (= (de-eval (de-lang "eval true&true")) true))
@@ -553,17 +554,29 @@
 
 (def de-env {})
 
-(defn de-eval-cmd [[head & [tail]]]
-  (cond
-    (= "eval" head) (de-eval-form tail de-env)
-    :else 
-    (do
-      (println "de-eval-cmd" head)
-      (de-unhandled head))))
+(defn de-assign-cmd [[_ id] cmd]
+  (let [kind (first cmd)]
+    (println "de-assign-cmd" id kind)))
+
+(defn de-eval-cmd [form]
+  (let [head (first form)
+        args (rest form)]
+    (println (second form))
+    (cond
+      (= "eval" head) (de-eval-form (first args) de-env)
+
+      (= (second form) [:ASSIGN])
+      (de-assign-cmd head (fnext args))
+
+
+      :else 
+      (do
+        (println "de-eval-cmd" form)
+        (de-unhandled form)))))
 
 (defn de-eval [form]
   (case (first form)
-    :ROOT (de-eval (first (rest form)))
+    :ROOT (de-eval (fnext form))
     :CMD (de-eval-cmd (rest form))
     (de-unhandled form)))
 
