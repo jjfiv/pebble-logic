@@ -33,7 +33,7 @@ public class Tuple {
   }
   
   public int get(int index) {
-    return data[arity-(index+1)];
+    return data[index];
   }
   
   @Override

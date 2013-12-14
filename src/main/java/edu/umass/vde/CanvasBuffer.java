@@ -1,6 +1,5 @@
 package edu.umass.vde;
 
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Deque;
@@ -10,7 +9,6 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JViewport;
 import javax.swing.Timer;
 
 /**
@@ -25,14 +23,38 @@ public class CanvasBuffer {
   private final JPanel parent;
   
   private final Deque<JComponent> components;
+  public final Deque<String> history;
+  public int historyPosition = 0;
 
   public CanvasBuffer(JPanel parent) {
     this.parent = parent;
     this.panel = new JPanel();
     this.scroller = new JScrollPane(panel);
+    this.history = new LinkedList<String>();
     components = new LinkedList<JComponent>();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-    Utils.setMinSize(scroller.getViewport(), 300, 300);
+    Utils.setMinSize(scroller.getViewport(), 600, 400);
+  }
+  
+  public void accept(String text) {
+    history.offer(text);
+    
+    while(history.size() > SIZE)
+      history.pop();
+    
+    historyPosition = 0;
+  }
+  
+  public String previous() {
+    if(history.size() == 0) return null;
+    historyPosition = (historyPosition+1) % history.size();
+    return (String) history.toArray()[historyPosition];
+  }
+  
+  public String next() {
+    if(history.size() == 0 || historyPosition == 0) return null;
+    historyPosition--;
+    return (String) history.toArray()[historyPosition];
   }
 
   public void add() {

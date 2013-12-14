@@ -19,6 +19,9 @@ public class PaddedLabel extends JLabel {
   }
   public PaddedLabel(String text) {
     super(text);
+    if(text.contains("\n")) {
+      this.setText("<html><pre>"+text+"<pre></html>");
+    }
     init();
   }
 

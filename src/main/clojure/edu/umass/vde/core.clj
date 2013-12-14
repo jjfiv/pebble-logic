@@ -480,9 +480,8 @@
              <'('> FORM <')'> |
              ATERM |
              TRUE | FALSE
-    ATERM = ATERM ('+'|'-') MTERM | MTERM
-    MTERM = MTERM ('*'|'/' '%') STERM | 
-            STERM
+    ATERM = ATERM (('+'|'-') ATERM)* | MTERM
+    MTERM = MTERM (('*'|'/'|'%') MTERM)* | STERM
     <STERM> = ID | NUMBER | <'('> ATERM <')'>
 
     TRUE = <'true' | '\\t'>
@@ -506,8 +505,8 @@
     (= op "&") (and lhs rhs)
     (= op "|") (or lhs rhs)
     (= op "*") (* (int lhs) (int rhs))
-    (= op "+") (* (int lhs) (int rhs))
-    (= op "-") (* (int lhs) (int rhs))
+    (= op "+") (+ (int lhs) (int rhs))
+    (= op "-") (- (int lhs) (int rhs))
     (= op "/") (int (/ (int lhs) (int rhs)))
     (= op "%") (int (mod (int lhs) (int rhs)))
     (= op "=") (= lhs rhs)
@@ -688,6 +687,9 @@
 (assert (= (de-eval (de-lang "eval false&true")) false))
 (assert (= (de-eval (de-lang "eval ~true")) false))
 (assert (= (de-eval (de-lang "eval ~true&true")) false))
+(assert (= (de-eval (de-lang "eval 4*3")) 12))
+(assert (= (de-eval (de-lang "eval 2+4*3")) 14))
+(assert (= (de-eval (de-lang "eval 2+4*3=14")) true))
 
 ;; descriptive environment section
 (def de-vocab-env (atom {}))
@@ -705,12 +707,19 @@
 
 (defn de-cmd [cmd]
   (try
-    (let [form (read-string cmd)]
-      (show-text (pr-str form))
-      (handle-cmd form)
+    (let [form (de-lang cmd)]
+      (when-not (= (first form) :ROOT)
+        (show-text (pr-str form))
+        (throw (Exception. "")))
+      (show-text cmd)
+      (de-eval form)
       (clear-command))
     (catch RuntimeException e
-      (show-text (str "Error: " (.getMessage e))))))
+      (show-text (str "Error: " (.getMessage e))))
+    (catch Exception e
+      (when-not (empty? (.getMessage e))
+        (show-text (str "Error: " (.getMessage e)))))
+    ))
 
 (defn eval-cmd [cmd]
   (if (not (empty? (current-game)))

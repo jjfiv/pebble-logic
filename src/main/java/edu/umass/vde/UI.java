@@ -3,6 +3,8 @@ package edu.umass.vde;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
@@ -36,6 +38,23 @@ public class UI implements ActionListener {
 
     commandField = new MaxHeightTextField();
     commandField.addActionListener(this);
+    commandField.addKeyListener(new KeyAdapter() {
+
+      @Override
+      public void keyPressed(KeyEvent ke) {              
+        String now = null;
+        if(ke.getKeyCode() == KeyEvent.VK_DOWN)
+          now = canvasBuffer.next();
+        else if(ke.getKeyCode() == KeyEvent.VK_UP)
+          now = canvasBuffer.previous();
+        else if(ke.getKeyCode() == KeyEvent.VK_ENTER)
+          canvasBuffer.accept(commandField.getText());
+        
+        if(now != null) {
+          commandField.setText(now);
+        }
+      }
+    });
     panel.add(commandField);
 
 
