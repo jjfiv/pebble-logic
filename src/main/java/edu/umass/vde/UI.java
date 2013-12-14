@@ -20,10 +20,10 @@ public class UI implements ActionListener {
   public final JPanel panel;
   public final CanvasBuffer canvasBuffer;
   public final JTextField commandField;
-
+  
   public UI(String title, CommandEvaluator ceval) {
     commandEvaluator = ceval;
-
+    
     frame = new JFrame();
     frame.setTitle(title);
     frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);

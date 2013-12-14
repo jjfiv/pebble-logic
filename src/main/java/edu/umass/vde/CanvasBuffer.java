@@ -32,18 +32,11 @@ public class CanvasBuffer {
     this.scroller = new JScrollPane(panel);
     components = new LinkedList<JComponent>();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-    setMinSize(300, 300);
+    Utils.setMinSize(scroller.getViewport(), 300, 300);
   }
 
   public void add() {
     parent.add(scroller);
-  }
-
-  private void setMinSize(int x, int y) {
-    Dimension size = new Dimension(x, y);
-    JViewport viewport = scroller.getViewport();
-    viewport.setMinimumSize(size);
-    viewport.setPreferredSize(size);
   }
 
   public void append(JComponent component) {
