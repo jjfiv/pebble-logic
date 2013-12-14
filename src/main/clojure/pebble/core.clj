@@ -464,8 +464,11 @@
               NOTFORM |
               QFORM
 
+    VARLIST = ID (<','> ID)*
+
     NOTFORM = <('~'|'!')> ANDFORM
-    <QFORM> = ATOMIC
+    QFORM = (FORALL|EXISTS) VARLIST ('.' FORM)? ':' ANDFORM |
+              ATOMIC
 
     <CMP> = '='|'!='|'<='|'<'|'>'|'>='
     <ATOMIC> = ATOMIC CMP ATERM |
@@ -519,6 +522,9 @@
 (defn de-id-str [[_ id]] id)
 (defn de-number [[_ numstr]] (int (read-string numstr)))
 
+(defn de-eval-quantifier [form env]
+  (println "Quantifiers not yet supported!"))
+
 (defn de-eval-form [form env]
   (let [head (first form)
         args (rest form)
@@ -537,6 +543,10 @@
              #{:FORM :ANDFORM :MTERM :ATERM}
              head))
       (de-eval-infix form env)
+
+      (and (= 4 size)
+           (= :QFORM head))
+      (de-eval-quantifier args env)
 
       (= :NOTFORM head)
       (not (de-eval-form (first args) env))
