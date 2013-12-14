@@ -4,7 +4,7 @@
         [instaparse.core :as insta]
         )
   (:import [edu.umass.vde UI PaddedLabel CommandEvaluator RenderMath
-                   Tuple Relation Constant Structure])
+                   Tuple Relation Constant Structure Substructure IStructure])
   (:gen-class))
 
 ;; logical structure utils
@@ -32,45 +32,36 @@
   (Constant. name value))
 
 (defn line-structure [size]
-  {
-   :name (str "l" size)
-   :size size 
-   :relations #{ (relation "E" 2 
+  (Structure. (str "l" size) 
+              size 
+              #{ (relation "E" 2 
                            (fn [tuple] (let [x (.get tuple 0)
                                              y (.get tuple 1)]
                                          (= (inc x) y)))
                            size) }
-   :constants { "s" 0 "t" (dec size) }
-   })
-
-(defn struc-nodes [struc]
-  (if (contains? struc :nodes)
-    (:nodes struc)
-    (range 0 (:size struc))))
+              { "s" 0 "t" (dec size) }))
 
 (defn relation-id [rel]
   {:name (.name rel) :arity (.arity rel)})
 
 ; now we can require vocabularies to be equal for EF-game playing!
-(defn struc->vocabulary [{rels :relations consts :constants}]
-  (concat
-    ; relations
-    (map relation-id rels)
-    ; constants
-    (map 
-      #(-> {:name % :arity 0})
-      (keys consts))))
+(defn struc->vocabulary [struc]
+  (let [rels (.relations struc)
+        consts (.constants struc)]
+    (concat
+      ; relations
+      (map relation-id rels)
+      ; constants
+      (map 
+        #(-> {:name % :arity 0})
+        (keys consts)))))
 
-(defn structure-contains? [{size :size} id]
-  (and
-    (<= 0 id)
-    (< id size)))
 
 (defn find-first [f coll]
   (first (filter f coll)))
 
-(defn find-edge-relation [{rels :relations}]
-  (->> rels
+(defn find-edge-relation [struc]
+  (->> (.relations struc)
        (filter #(= (.arity %) 2))
        ; select "E" predicate if available else any 2-relation
        ((fn [rels-2]
@@ -134,7 +125,7 @@
     ; invariants
     (when (= player :duplicator)
       (assert (= (:next-pebble game) pebble)))
-    (assert (structure-contains? struc which-node))
+    (assert (.inDomain struc which-node))
 
     (->
       ; conditional updates
@@ -157,7 +148,7 @@
   (into #{} (vals m)))
 
 (defn active-nodes [struc pebbles]
-  (merge (:constants struc) pebbles))
+  (merge (.constants struc) pebbles))
 
 (defn active-relations [struc pebbles]
   (let [consts-and-pebbles (active-nodes struc pebbles)
@@ -181,16 +172,22 @@
          pebbles :pebbles} (get game which-struc)
         nodes (active-nodes struc pebbles)
         edges (active-relations struc pebbles)]
-    {:name (:name struc)
-     :nodes (value-set nodes)
-     :relations edges
-     :constants (merge (:constants struc) pebbles)}
-    ))
+    (Substructure. (.name struc)
+                   (.size struc)
+                   (value-set nodes)
+                   edges
+                   (active-nodes struc pebbles)
+                   )))
 
 (defn structure [game which-struc]
   (let [{struc :struc
          pebbles :pebbles} (get game which-struc)]
-    (assoc struc :constants (merge (:constants struc) pebbles))))
+    (Structure.
+      (.name struc)
+      (.size struc)
+      (.relations struc)
+
+      (merge (.constants struc) pebbles))))
 
 (defn meaningful-exprs [game which-struc]
   (let [{struc :struc pebbles :pebbles} (get game which-struc)
@@ -326,9 +323,9 @@
 
 ;; graphviz
 (defn graphviz-nodes [struc]
-  (let [constants (:constants struc)
+  (let [constants (.constants struc)
         id->const (clojure.set/map-invert constants)]
-    (->> (struc-nodes struc)
+    (->> (.nodes struc)
          (map (fn [nid]
                 (if (contains? id->const nid)
                   (str nid "[label=\"" (get id->const nid) "=" nid "\"]")
@@ -625,14 +622,14 @@
             defs (drop 3 cmd)
             parsed-defs (map #(de-parse-def % size) defs)
             ]
-        {:name id
-         :size size
-         :relations (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
-         :constants (->> parsed-defs
+        (Structure. id
+                    size
+                    (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
+                    (->> parsed-defs
                          (filter #(.isConstant %))
                          (map #(-> [(.name %) (.value %)]))
                          (into {}))
-         })
+                    ))
       
       (= :NEW_VOCAB kind)
       (into #{} (map de-parse-decl (rest cmd)))
