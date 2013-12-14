@@ -4,7 +4,8 @@
         [instaparse.core :as insta]
         )
   (:import [edu.umass.vde UI PaddedLabel CommandEvaluator RenderMath
-                   Tuple Relation Constant Structure Substructure IStructure])
+            Tuple Relation Constant Vocabulary Environment
+            Structure Substructure IStructure])
   (:gen-class))
 
 ;; logical structure utils
@@ -608,6 +609,10 @@
 
       :else (de-unhandled kind))))
 
+(defn de-assign [obj]
+  (Environment/assign obj))
+
+
 (defn de-assign-cmd [idf cmd]
   (let [id (de-id-str idf)
         kind (first cmd)]
@@ -618,17 +623,27 @@
             defs (drop 3 cmd)
             parsed-defs (map #(de-parse-def % size) defs)
             ]
-        (Structure. id
-                    size
-                    (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
-                    (->> parsed-defs
-                         (filter #(.isConstant %))
-                         (map #(-> [(.name %) (.value %)]))
-                         (into {}))
-                    ))
+        (de-assign 
+          (Structure. id
+                      size
+                      (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
+                      (->> parsed-defs
+                           (filter #(.isConstant %))
+                           (map #(-> [(.name %) (.value %)]))
+                           (into {}))
+                      )))
       
       (= :NEW_VOCAB kind)
-      (into #{} (map de-parse-decl (rest cmd)))
+      (let [decls (map de-parse-decl (rest cmd))]
+        (de-assign 
+          (Vocabulary. 
+            id
+            (into {} 
+                  (map #(-> [(:id %) (:arity %)])
+                       (filter #(< 0 (:arity %)) decls)))
+            (into #{} 
+                  (map #(:id %) 
+                       (filter #(= (:arity %) 0) decls))))))
       
       :else
       (do 

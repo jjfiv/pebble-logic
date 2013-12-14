@@ -33,7 +33,7 @@ public class Structure implements IStructure {
     for(int i=0; i<size; i++) {
       nl.add(i);
     }
-    return new HashSet(nl);
+    return new HashSet<Integer>(nl);
   }
 
   @Override
