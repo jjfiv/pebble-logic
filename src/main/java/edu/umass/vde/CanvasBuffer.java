@@ -52,7 +52,11 @@ public class CanvasBuffer {
   }
   
   public String next() {
-    if(history.size() == 0 || historyPosition == 0) return null;
+    if(history.size() == 0 ) return null;
+    if(historyPosition == 0) {
+      historyPosition = 0;
+      return "";
+    }
     historyPosition--;
     return (String) history.toArray()[historyPosition];
   }

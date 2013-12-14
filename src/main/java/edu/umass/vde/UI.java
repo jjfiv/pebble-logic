@@ -47,8 +47,6 @@ public class UI implements ActionListener {
           now = canvasBuffer.next();
         else if(ke.getKeyCode() == KeyEvent.VK_UP)
           now = canvasBuffer.previous();
-        else if(ke.getKeyCode() == KeyEvent.VK_ENTER)
-          canvasBuffer.accept(commandField.getText());
         
         if(now != null) {
           commandField.setText(now);

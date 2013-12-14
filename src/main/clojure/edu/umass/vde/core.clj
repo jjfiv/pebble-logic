@@ -74,7 +74,8 @@
   (str "p_{" n "}"))
 
 (defn make-ef-game [num-pebbles num-moves lstruc rstruc]
-  (assert (= (struc->vocabulary lstruc) (struc->vocabulary rstruc)))
+  (when (not= (struc->vocabulary lstruc) (struc->vocabulary rstruc))
+    (throw (Exception. "Vocabularies do not agree")))
   (let [k (max 0 num-pebbles)
         n (max k num-moves)]
     {
@@ -112,7 +113,8 @@
   (first (legal-structures game)))
 
 (defn play-pebble [game pebble which-struc which-node]
-  (assert (contains? (legal-structures game) which-struc))
+  (when-not (contains? (legal-structures game) which-struc)
+    (throw (Exception. (str "Illegal move: bad structure, use " (next-structure game) " instead"))))
   (let [{struc :struc pebbles :pebbles}  (get game which-struc)
         turns (:moves game)
         player (whose-turn game)
@@ -121,8 +123,11 @@
         ]
     ; invariants
     (when (= player :duplicator)
-      (assert (= (:next-pebble game) pebble)))
-    (assert (.inDomain struc which-node))
+      (when-not (= (:next-pebble game) pebble)
+      (throw (Exception. (str "Illegal move on " pebble " use pebble " (:next-pebble game) " instead!")))))
+
+    (when-not (.inDomain struc which-node)
+      (throw (Exception. (str "Illegal node, " which-node " not in domain."))))
 
     (->
       ; conditional updates
@@ -258,6 +263,9 @@
 (defn latex-sname [id]
   (get {:A "\\mathcal{A}" :B "\\mathcal{B}"} id))
 
+(defn text-name [id]
+  (get {:A "A" :B "B"} id))
+
 (defn difference-to-latex [coll]
   (let [phi-a (latex-and (map (fn [{rel :rel exprs :A}] (latex-rel rel exprs)) coll))
         phi-b (latex-and (map (fn [{rel :rel exprs :B}] (latex-rel rel exprs)) coll))]
@@ -281,9 +289,9 @@
 
 (defn game-over-message [game]
   (assert (game-over? game))
-    (str "Game Over "
+    (str "\text{Game Over "
          (player-string (winner game))
-         " wins: "
+         " wins: }"
          (difference-to-latex (explain-difference game))))
 
 (def -cur-game (atom {}))
@@ -390,11 +398,21 @@
   (show-structure (substructure game :B)))
 
 (defn user-turn-message [game]
-  (if (= (whose-turn game) :spoiler)
-    (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
-    (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
-                    (latex-sname (next-structure game)))))
-  (show-board game))
+  (if (game-over? game)
+    (do
+      (show-substructure game)
+      (show-math (game-over-message game)) 
+      )
+    (do
+      (if (= (whose-turn game) :spoiler)
+        (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
+        (do
+          (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
+                          (latex-sname (next-structure game))))
+          (.setText (.commandField ui) (str "pebble " (:next-pebble game) " " (text-name (next-structure game)) " "))
+          )
+        )
+      (show-board game))))
 
 (defn struc-name-to-which [txt]
   (let [ltxt (.toLowerCase txt)]
@@ -449,7 +467,7 @@
     ROOT = CMD '.'?
     CMD = ID ASSIGN CMDEXPR |
           'eval' FORM |
-          'ef' ID ID
+          'ef' NUMBER NUMBER ID ID
     <CMDEXPR> =  NEW_VOCAB | NEW_STRUC
 
     NEW_VOCAB = <'new'> <'vocabulary' | 'vocab'> <'{'> DECLS <'}'>
@@ -625,7 +643,6 @@
             defs (drop 3 cmd)
             parsed-defs (map #(de-parse-def % size) defs)
             ]
-        (println parsed-defs)
         (de-assign 
           (Structure. id
                       size
@@ -666,7 +683,16 @@
     (cond
       (= "eval" head) (de-eval-form (first args) de-env)
       (= "ef" head)
-      (println (lookup-struc (de-id-str (first args))) (lookup-struc (de-id-str (second args))))
+      (let [[a b c d] args
+            num-pebbles (de-number a)
+            num-turns (de-number b)
+            lhs (de-id-str c)
+            rhs (de-id-str d)]
+        (show-text (str "Begin EF Game: k=" num-pebbles " pebbles, n=" num-turns " turns, with A=" lhs " and B=" rhs "."))
+        (show-text (str "Enter: \"pebble\" [name=x1] [which=A or B] [node=1..n] "))
+        (update-game (make-ef-game num-pebbles num-turns (lookup-struc lhs) (lookup-struc rhs)))
+        (show-board (current-game))
+        )
 
       (= (second form) [:ASSIGN])
       (de-assign-cmd head (fnext args))
@@ -713,6 +739,7 @@
         (throw (Exception. "")))
       (show-text cmd)
       (de-eval form)
+      (.accept (.canvasBuffer ui) cmd)
       (clear-command))
     (catch RuntimeException e
       (show-text (str "Error: " (.getMessage e))))
@@ -741,9 +768,11 @@
 
 (defn init []
   (def ui (make-ui))
-  (de-eval (de-lang "graph is new vocabulary {E:2,s,t}."))
-  (de-eval (de-lang "l4 is new structure {graph,4,E:2:=x2=x1+1,s:=0,t:=3}."))
-  (show-structure (line-structure 4)))
+  (eval-cmd "graph is new vocabulary {E:2,s,t}.")
+  (eval-cmd "l4 is new structure {graph,4,E:2:=x2=x1+1,s:=0,t:=3}.")
+  (eval-cmd "l5 is new structure {graph,5,E:2:=x2=x1+1,s:=0,t:=4}.")
+  (eval-cmd "ef 2 3 l4 l5")
+  )
     
 ;; load in repl
 (when-not (and (resolve 'ui) (bound? (resolve 'ui)))
