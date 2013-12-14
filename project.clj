@@ -1,4 +1,4 @@
-(defproject visual-de "0.1.0-SNAPSHOT"
+(defproject visual-de "1.0.0"
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [instaparse "1.2.12"]
                  ;[org.ow2.sat4j/org.ow2.sat4j.core "2.3.4"]

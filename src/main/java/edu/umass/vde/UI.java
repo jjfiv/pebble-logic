@@ -28,7 +28,7 @@ public class UI implements ActionListener {
     
     frame = new JFrame();
     frame.setTitle(title);
-    frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
     panel = new JPanel();
     panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));

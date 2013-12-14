@@ -177,7 +177,7 @@
     (Substructure. (.name struc)
                    (.size struc)
                    (value-set nodes)
-                   edges
+                   (into #{} edges)
                    (active-nodes struc pebbles)
                    )))
 
@@ -290,9 +290,7 @@
 
 (defn game-over-message [game]
   (assert (game-over? game))
-    (str "\text{Game Over "
-         (player-string (winner game))
-         " wins: }"
+    (str "\\text{" (player-string (winner game)) " wins: }"
          (difference-to-latex (explain-difference game))))
 
 (def -cur-game (atom {}))
@@ -301,18 +299,6 @@
 (defn current-game []
   (deref -cur-game))
 
-(defn user-hint [game]
-  (if (game-over? game)
-    (game-over-message game)
-    (let [next-player (whose-turn game)]
-      (str 
-        "Next player: "
-        (player-string next-player)
-        (if (= next-player :duplicator)
-          (str " needs to play on structure: " (latex-sname (first (legal-structures game))))
-          "")
-        )
-      )))
 
 (defn test-game []
   (-> (make-ef-game 2 2 (line-structure 5) (line-structure 4))
@@ -371,16 +357,18 @@
 ;; UI system - local ui variable
 (def ui)
 
-(defn show-structure [struc]
-  (if (has-graphviz?)
-    (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr struc)))  
-    (.showText ui (str struc))))
-
 (defn show-math [latex]
   (.showImage ui (RenderMath/renderLatex latex)))
 
 (defn show-text [text]
   (.showText ui text))
+
+(defn show-structure [struc]
+  (try
+    (if (has-graphviz?)
+      (.showBytesAsImage ui (graphviz-to-bytes (graphviz-repr struc)))  
+      (.showText ui (str struc)))
+    (catch Exception e (show-text (.getMessage e)))))
 
 (defn clear-command []
   (-> ui (.commandField) (.setText "")))
@@ -399,21 +387,15 @@
   (show-structure (substructure game :B)))
 
 (defn user-turn-message [game]
-  (if (game-over? game)
+  (if (= (whose-turn game) :spoiler)
+    (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
     (do
-      (show-substructure game)
-      (show-math (game-over-message game)) 
+      (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
+                      (latex-sname (next-structure game))))
+      (.setText (.commandField ui) (str "pebble " (:next-pebble game) " " (text-name (next-structure game)) " "))
       )
-    (do
-      (if (= (whose-turn game) :spoiler)
-        (show-math (latex-text "Spoiler can place a pebble anywhere on either structure."))
-        (do
-          (show-math (str (latex-text (str "Duplicator must place " (:next-pebble game) " on ")) 
-                          (latex-sname (next-structure game))))
-          (.setText (.commandField ui) (str "pebble " (:next-pebble game) " " (text-name (next-structure game)) " "))
-          )
-        )
-      (show-board game))))
+    )
+  (show-board game))
 
 (defn struc-name-to-which [txt]
   (let [ltxt (.toLowerCase txt)]
@@ -425,7 +407,12 @@
 
 (defn just-placed-pebble [game]
   (if (game-over? game)
-    (show-text "Game Over!")
+    (do
+      (show-text "Game Over!")
+      (show-substructure game)
+      (show-math (game-over-message game))
+      (update-game {})
+      )
     (user-turn-message game)))
 
 ;; command handling
@@ -692,7 +679,7 @@
         (show-text (str "Begin EF Game: k=" num-pebbles " pebbles, n=" num-turns " turns, with A=" lhs " and B=" rhs "."))
         (show-text (str "Enter: \"pebble\" [name=x1] [which=A or B] [node=1..n] "))
         (update-game (make-ef-game num-pebbles num-turns (lookup-struc lhs) (lookup-struc rhs)))
-        (show-board (current-game))
+        (just-placed-pebble (current-game))
         )
 
       (= (second form) [:ASSIGN])
@@ -773,11 +760,24 @@
   (eval-cmd "l4 is new structure {graph,4,E:2:=x2=x1+1,s:=0,t:=3}.")
   (eval-cmd "l5 is new structure {graph,5,E:2:=x2=x1+1,s:=0,t:=4}.")
   (eval-cmd "ef 2 3 l4 l5")
+  (eval-cmd "pebble x1 A 1")
+  (eval-cmd "pebble x1 B 1")
+  (eval-cmd "pebble x2 A 2")
+  (eval-cmd "pebble x2 B 3")
   )
     
-;; load in repl
-(when-not (and (resolve 'ui) (bound? (resolve 'ui)))
-  (init))
 
-(test-game)
+(defn -main []
+  (def ui (make-ui))
+  (eval-cmd "graph is new vocabulary {E:2,s,t}.")
+  (eval-cmd "l4 is new structure {graph,4,E:2:=x2=x1+1,s:=0,t:=3}.")
+  (eval-cmd "l5 is new structure {graph,5,E:2:=x2=x1+1,s:=0,t:=4}.")
+  )
+
+
+;; load in repl
+;(when-not (and (resolve 'ui) (bound? (resolve 'ui)))
+;  (init))
+
+;(test-game)
 
