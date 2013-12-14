@@ -659,12 +659,6 @@
 (def de-vocab-env (atom {}))
 (def de-struc-env (atom {}))
 
-(defn make-relation [id arity]
-  {:name id :arity arity})
-
-(defn make-constant [id]
-  id)
-
 (defn de-define-vocab [id v]
   (swap! de-vocab-env assoc id v))
 
