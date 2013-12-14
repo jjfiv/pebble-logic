@@ -63,7 +63,7 @@
        ; select "E" predicate if available else any 2-relation
        ((fn [rels-2]
          (if (empty? rels-2)
-           nil
+           (throw (Exception. "No arity-2 relation to draw!"))
            (if-let [e-rel (find-first #(= (.name %) "E") rels-2)]
              e-rel
              (first rels-2)))))))
@@ -448,7 +448,8 @@
     "
     ROOT = CMD '.'?
     CMD = ID ASSIGN CMDEXPR |
-          'eval' FORM
+          'eval' FORM |
+          'ef' ID ID
     <CMDEXPR> =  NEW_VOCAB | NEW_STRUC
 
     NEW_VOCAB = <'new'> <'vocabulary' | 'vocab'> <'{'> DECLS <'}'>
@@ -610,6 +611,8 @@
       :else (de-unhandled kind))))
 
 (defn de-assign [obj]
+  (when (instance? Structure obj)
+    (show-structure obj))
   (Environment/assign obj))
 
 
@@ -623,10 +626,14 @@
             defs (drop 3 cmd)
             parsed-defs (map #(de-parse-def % size) defs)
             ]
+        (println parsed-defs)
         (de-assign 
           (Structure. id
                       size
-                      (->> parsed-defs (filter #(not (.isConstant %))) (into {}))
+                      (->> parsed-defs 
+                           (filter 
+                             #(not (.isConstant %)))
+                           (into #{}))
                       (->> parsed-defs
                            (filter #(.isConstant %))
                            (map #(-> [(.name %) (.value %)]))
@@ -649,11 +656,18 @@
       (do 
         (de-unhandled kind)))))
 
+(defn lookup-struc [id]
+  (-> (Environment/get)
+       (.structures)
+       (get id)))
+
 (defn de-eval-cmd [form]
   (let [head (first form)
         args (rest form)]
     (cond
       (= "eval" head) (de-eval-form (first args) de-env)
+      (= "ef" head)
+      (println (lookup-struc (de-id-str (first args))) (lookup-struc (de-id-str (second args))))
 
       (= (second form) [:ASSIGN])
       (de-assign-cmd head (fnext args))
@@ -718,7 +732,8 @@
 
 (defn init []
   (def ui (make-ui))
-  (show-math "\\forall x,y: E(x,y)")
+  (de-eval (de-lang "graph is new vocabulary {E:2,s,t}."))
+  (de-eval (de-lang "l4 is new structure {graph,4,E:2:=x2=x1+1,s:=0,t:=3}."))
   (show-structure (line-structure 4)))
     
 ;; load in repl
