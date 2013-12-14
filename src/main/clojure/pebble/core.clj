@@ -447,13 +447,14 @@
           'eval' FORM
     <CMDEXPR> =  NEW_VOCAB | NEW_STRUC
 
-    NEW_VOCAB = <'new'> <'vocabulary' | 'vocab'> <'{'> DEFS <'}'>
-    NEW_STRUC = <'new'> <'structure' | 'struc'> <'{'> ID <','> ATERM (<','> REL_DEF)* (<','> CONST_DEF)* <'}'> 
+    NEW_VOCAB = <'new'> <'vocabulary' | 'vocab'> <'{'> DECLS <'}'>
+    NEW_STRUC = <'new'> <'structure' | 'struc'> <'{'> ID <','> ATERM DEFS <'}'> 
 
+    <DEFS> = (<','> (REL_DEF|CONST_DEF))*
     REL_DEF = REL_DECL <ASSIGN> FORM
     CONST_DEF = CONST_DECL <ASSIGN> ATERM
 
-    DEFS = (REL_DECL | CONST_DECL) (<','> (REL_DECL | CONST_DECL))*
+    <DECLS> = (REL_DECL | CONST_DECL) (<','> (REL_DECL | CONST_DECL))*
     REL_DECL = ID <':'> NUMBER
     CONST_DECL = ID
 
@@ -466,13 +467,13 @@
     NOTFORM = <('~'|'!')> ANDFORM
     <QFORM> = ATOMIC
 
-    CMP = '='|'!='|'<='|'<'|'>'|'>='
+    <CMP> = '='|'!='|'<='|'<'|'>'|'>='
     <ATOMIC> = ATOMIC CMP ATERM |
              <'('> FORM <')'> |
              ATERM |
              TRUE | FALSE
     ATERM = ATERM ('+'|'-') MTERM | MTERM
-    MTERM = MTERM ('*'|'/') STERM | 
+    MTERM = MTERM ('*'|'/' '%') STERM | 
             STERM
     <STERM> = ID | NUMBER | <'('> ATERM <')'>
 
@@ -497,6 +498,15 @@
     (= op "+") (* (int lhs) (int rhs))
     (= op "-") (* (int lhs) (int rhs))
     (= op "/") (int (/ (int lhs) (int rhs)))
+    (= op "%") (int (mod (int lhs) (int rhs)))
+    (= op "=") (= lhs rhs)
+    (= op "!=") (not= lhs rhs)
+    (= op "<=") (<= lhs rhs)
+    (= op "<") (< lhs rhs)
+    (= op ">=") (>= lhs rhs)
+    (= op ">") (> lhs rhs)
+    (= op "->") (or (not lhs) rhs)
+    (= op "<->") (and (or (not lhs) rhs) (or lhs (not rhs)))
     :else
     (do
       (println "apply" op lhs rhs)
@@ -559,36 +569,58 @@
 (defn de-rel-func [relform arity]
   (let [input-vars (map #(str "x" (inc %)) (range 0 arity))]
     (fn [tuple]
-      (println "HERE!")
-      (let [env (into {} (map (fn [var-name value]
-                                 [var-name value]) input-vars tuple))]
-        (println env)
+      (let [env 
+            (into {} (map #(-> [%1 %2]) input-vars tuple))]
         (de-eval-form relform env))
       )
     ))
 
-(defn de-parse-def [form]
-  (let [[kind decl value] form]
-    (cond 
-      (= :REL_DEF kind)
-      (let [[_ idf arityf] decl
-            id (de-id-str idf)
-            arity (de-number arityf)]
-        (println id ":" arity value))
-      (= :CONST_DEF kind) (println [decl (de-eval-form value de-env)])
+(defn de-parse-decl [form]
+  (let [kind (first form)
+        id (de-id-str (second form))]
+    (cond
+      (= :REL_DECL kind) {:id id :arity (de-number (nth form 2))}
+      (= :CONST_DECL kind) {:id id :arity 0}
       :else (de-unhandled kind))))
 
-(defn de-assign-cmd [[_ id] cmd]
-  (let [kind (first cmd)]
-    (if (= :NEW_STRUC kind)
+(defn de-parse-def [form size]
+  (let [[kind decl valf] form]
+    (cond 
+      (= :REL_DEF kind)
+      (let [{id :id arity :arity} (de-parse-decl decl)]
+        (relation id arity (de-rel-func valf arity) size))
+
+      (= :CONST_DEF kind)
+      (let [{id :id} (de-parse-decl decl)
+            value (de-eval-form valf de-env)]
+        {:name id :arity 0 :value value})
+
+      :else (de-unhandled kind))))
+
+(defn de-assign-cmd [idf cmd]
+  (let [id (de-id-str idf)
+        kind (first cmd)]
+    (cond 
+      (= :NEW_STRUC kind)
       (let [vocab-id (de-id-str (second cmd))
             size (de-eval-form (nth cmd 2) de-env)
-            defs (drop 3 cmd)]
-        (println "new structure" id "of" vocab-id " size =" size)
-        (doall (map de-parse-def defs))
-        )
+            defs (drop 3 cmd)
+            parsed-defs (map #(de-parse-def % size) defs)
+            ]
+        {:name id
+         :size size
+         :relations (filter #(<= 1 (:arity %)) parsed-defs)
+         :constants (->> parsed-defs
+                         (filter #(= 0 (:arity %)))
+                         (map (fn [{id :name vl :value}] [id vl]))
+                         (into {}))
+         })
+      
+      (= :NEW_VOCAB kind)
+      (into #{} (map de-parse-decl (rest cmd)))
+      
+      :else
       (do 
-        (println "de-assign-cmd" id kind)
         (de-unhandled kind)))))
 
 (defn de-eval-cmd [form]
@@ -623,36 +655,14 @@
 (defn make-constant [id]
   id)
 
-(defn make-vocab [rels consts]
-  {:relations (into #{} rels) 
-   :constants (into #{} consts)})
-
-(defn make-struc [id size rels consts]
-  {:name id
-   :size size
-   :relations rels
-   :constants consts})
-
 (defn de-define-vocab [id v]
   (swap! de-vocab-env assoc id v))
 
 (defn de-define-struc [id s]
   (swap! de-struc-env assoc id s))
 
-(defn new-vocab [forms]
-  (->> forms
-       (map
-         #(cond
-            (= (first %) 'relation-def) (let [[_ id arity] %] 
-                                          [:relation (make-relation id arity)])
-            (= (first %) 'constant-def) (let [[_ id] %] 
-                                          [:constant (make-constant id)])
-           )
-         )))
-
 (defn handle-cmd [form]
   (cond
-    (= (take 2 form) '[new vocab]) (new-vocab (drop 2 form))
     :else (show-text (str "Unknown Command:" (first form)))))
 
 (defn de-cmd [cmd]
